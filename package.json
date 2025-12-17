@@ -1,0 +1,30 @@
+{
+  "name": "env-differ",
+  "module": "src/index.tsx",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "prepare": "effect-language-service patch",
+    "dev": "bun run src/index.tsx",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.62.4",
+    "@types/bun": "latest",
+    "@types/react": "^19"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@effect/cli": "^0.72.1",
+    "@effect/platform": "^0.93.8",
+    "@effect/platform-bun": "^0.86.0",
+    "@opentui/core": "^0.1.61",
+    "@opentui/react": "^0.1.61",
+    "effect": "^3.19.12",
+    "jotai": "^2.16.0",
+    "react": "^19.2.3"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    // Effect Language Service
+    "plugins": [
+      {
+        "name": "@effect/language-service"
+      }
+    ],
+
+    // Module System
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "allowJs": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
+
+    // Type Safety
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+
+    // Build
+    "skipLibCheck": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
