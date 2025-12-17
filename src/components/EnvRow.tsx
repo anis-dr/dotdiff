@@ -1,16 +1,19 @@
 /**
  * EnvRow component - displays a single variable row with status
  */
-import type { DiffRow, PendingChange, VariableStatus } from "../types.js";
+import { useAtomValue } from "jotai";
+import type { DiffRow, VariableStatus } from "../types.js";
 import { Colors } from "../types.js";
+import {
+  colWidthsAtom,
+  pendingChangesAtom,
+  selectedColAtom,
+  selectedRowAtom,
+} from "../state/atoms.js";
 
 interface EnvRowProps {
   readonly row: DiffRow;
-  readonly fileCount: number;
-  readonly selectedCol: number;
-  readonly isSelectedRow: boolean;
-  readonly pendingChanges: ReadonlyArray<PendingChange>;
-  readonly colWidths: ReadonlyArray<number>;
+  readonly rowIndex: number;
 }
 
 const statusIcon: Record<VariableStatus, string> = {
@@ -25,18 +28,18 @@ const statusColor: Record<VariableStatus, string> = {
   missing: Colors.missing,
 };
 
-export function EnvRow({
-  row,
-  selectedCol,
-  isSelectedRow,
-  pendingChanges,
-  colWidths,
-}: EnvRowProps) {
+export function EnvRow({ row, rowIndex }: EnvRowProps) {
+  const selectedRow = useAtomValue(selectedRowAtom);
+  const selectedCol = useAtomValue(selectedColAtom);
+  const pendingChanges = useAtomValue(pendingChangesAtom);
+  const colWidths = useAtomValue(colWidthsAtom);
+
+  const isSelectedRow = rowIndex === selectedRow;
   const icon = statusIcon[row.status];
   const color = statusColor[row.status];
 
   // Find pending changes for this row
-  const pendingByFile = new Map<number, PendingChange>();
+  const pendingByFile = new Map<number, (typeof pendingChanges)[number]>();
   for (const change of pendingChanges) {
     if (change.key === row.key) {
       pendingByFile.set(change.fileIndex, change);
@@ -90,13 +93,15 @@ export function EnvRow({
                 {...(isSelectedCell
                   ? { backgroundColor: Colors.selectedBg }
                   : hasPending
-                  ? { backgroundColor: "#3D2F1F" }
-                  : {})}
+                    ? { backgroundColor: "#3D2F1F" }
+                    : {})}
                 flexDirection="column"
               >
                 {/* Key line */}
                 <text>
-                  <span fg={isSelectedCell ? Colors.selectedText : color}>{icon} </span>
+                  <span fg={isSelectedCell ? Colors.selectedText : color}>
+                    {icon}{" "}
+                  </span>
                   {isSelectedCell ? (
                     <b>
                       <span fg={Colors.selectedText}>{row.key}</span>
@@ -105,8 +110,17 @@ export function EnvRow({
                     <span fg={Colors.primaryText}>{row.key}</span>
                   )}
                   {hasPending && (
-                  <span fg={isSelectedCell ? Colors.selectedText : Colors.pendingChange}> ✎</span>
-                )}
+                    <span
+                      fg={
+                        isSelectedCell
+                          ? Colors.selectedText
+                          : Colors.pendingChange
+                      }
+                    >
+                      {" "}
+                      ✎
+                    </span>
+                  )}
                 </text>
 
                 {/* Value line */}
@@ -127,8 +141,8 @@ export function EnvRow({
                         isSelectedCell
                           ? Colors.selectedText
                           : value === null
-                          ? Colors.missing
-                          : Colors.secondaryText
+                            ? Colors.missing
+                            : Colors.secondaryText
                       }
                     >
                       {truncatedValue}

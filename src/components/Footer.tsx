@@ -1,16 +1,19 @@
 /**
  * Footer component - displays clipboard, pending changes, and keybindings
  */
-import type { Clipboard, PendingChange } from "../types.js";
+import { useAtomValue } from "jotai";
 import { Colors } from "../types.js";
+import {
+  clipboardAtom,
+  messageAtom,
+  pendingChangesAtom,
+} from "../state/atoms.js";
 
-interface FooterProps {
-  readonly clipboard: Clipboard | null;
-  readonly pendingChanges: ReadonlyArray<PendingChange>;
-  readonly message: string | null;
-}
+export function Footer() {
+  const clipboard = useAtomValue(clipboardAtom);
+  const pendingChanges = useAtomValue(pendingChangesAtom);
+  const message = useAtomValue(messageAtom);
 
-export function Footer({ clipboard, pendingChanges, message }: FooterProps) {
   const pendingCount = pendingChanges.length;
 
   // Truncate long clipboard values

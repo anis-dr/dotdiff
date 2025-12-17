@@ -1,16 +1,15 @@
 /**
  * Header component - displays file names and variable counts
  */
-import type { EnvFile } from "../types.js";
+import { useAtomValue } from "jotai";
 import { Colors } from "../types.js";
+import { colWidthsAtom, filesAtom, selectedColAtom } from "../state/atoms.js";
 
-interface HeaderProps {
-  readonly files: ReadonlyArray<EnvFile>;
-  readonly selectedCol: number;
-  readonly colWidths: ReadonlyArray<number>;
-}
+export function Header() {
+  const files = useAtomValue(filesAtom);
+  const selectedCol = useAtomValue(selectedColAtom);
+  const colWidths = useAtomValue(colWidthsAtom);
 
-export function Header({ files, selectedCol, colWidths }: HeaderProps) {
   return (
     <box flexDirection="row" width="100%">
       {files.map((file, index) => {
@@ -34,17 +33,19 @@ export function Header({ files, selectedCol, colWidths }: HeaderProps) {
               paddingRight={1}
               justifyContent="center"
             >
-            <text>
-              <b>
-                <span fg={isSelected ? Colors.selectedText : Colors.primaryText}>
-                  {file.filename}
+              <text>
+                <b>
+                  <span
+                    fg={isSelected ? Colors.selectedText : Colors.primaryText}
+                  >
+                    {file.filename}
+                  </span>
+                </b>
+                <span fg={isSelected ? Colors.selectedText : Colors.dimText}>
+                  {" "}
+                  ({varCount})
                 </span>
-              </b>
-              <span fg={isSelected ? Colors.selectedText : Colors.dimText}>
-                {" "}
-                ({varCount})
-              </span>
-            </text>
+              </text>
             </box>
           </box>
         );
