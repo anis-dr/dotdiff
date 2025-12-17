@@ -3,21 +3,24 @@
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { useTerminalDimensions } from "@opentui/react";
 import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, EnvFile, PendingChange } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";
 import {
-  clipboardAtom,
   colWidthsAtom,
   diffRowsAtom,
-  editModeAtom,
   filesAtom,
   messageAtom,
-  pendingChangesAtom,
-  selectedColAtom,
-  selectedRowAtom,
 } from "../state/atoms.js";
+import {
+  usePendingChanges,
+  useNavigation,
+  useCurrentRow,
+  useClipboard,
+  useEditMode,
+  useKeyBindings,
+} from "../hooks/index.js";
 import { Header } from "./Header.js";
 import { EnvRow } from "./EnvRow.js";
 import { Footer } from "./Footer.js";
@@ -38,25 +41,34 @@ export function App({
   const { width: terminalWidth } = useTerminalDimensions();
   const inputRef = useRef<InputRenderable>(null);
 
-  // Jotai atoms
+  // Core state
   const [files, setFiles] = useAtom(filesAtom);
   const [diffRows, setDiffRows] = useAtom(diffRowsAtom);
-  const [selectedRow, setSelectedRow] = useAtom(selectedRowAtom);
-  const [selectedCol, setSelectedCol] = useAtom(selectedColAtom);
-  const [clipboard, setClipboard] = useAtom(clipboardAtom);
-  const [pendingChanges, setPendingChanges] = useAtom(pendingChangesAtom);
-  const [editMode, setEditMode] = useAtom(editModeAtom);
   const [message, setMessage] = useAtom(messageAtom);
   const setColWidths = useSetAtom(colWidthsAtom);
+
+  const fileCount = files.length;
+  const rowCount = diffRows.length;
+
+  // Custom hooks
+  const pendingChangesHook = usePendingChanges();
+  const { pendingChanges, clearChanges, undoLast, upsertChange, removeChange, removeChangesForKey, addChanges } =
+    pendingChangesHook;
+
+  const navigation = useNavigation(rowCount, fileCount);
+  const { selectedRow, selectedCol, setSelectedRow } = navigation;
+
+  const { currentRow } = useCurrentRow();
+
+  const clipboardHook = useClipboard(pendingChangesHook);
+  const editModeHook = useEditMode(pendingChangesHook);
+  const { editMode, handleEditInput, cancelEdit } = editModeHook;
 
   // Initialize atoms from props on mount
   useEffect(() => {
     setFiles(initialFiles);
     setDiffRows(initialDiffRows);
   }, [initialFiles, initialDiffRows, setFiles, setDiffRows]);
-
-  const fileCount = files.length;
-  const rowCount = diffRows.length;
 
   // Calculate and set column widths
   const colWidths = useMemo(() => {
@@ -71,7 +83,6 @@ export function App({
     );
   }, [terminalWidth, fileCount]);
 
-  // Sync colWidths to atom for children
   useEffect(() => {
     setColWidths(colWidths);
   }, [colWidths, setColWidths]);
@@ -85,378 +96,99 @@ export function App({
     [setMessage]
   );
 
-  // Navigation helpers
-  const moveUp = useCallback(() => {
-    setSelectedRow((r) => Math.max(0, r - 1));
-  }, [setSelectedRow]);
+  // Action handlers that use hooks and show messages
+  const handleCopy = useCallback(() => {
+    if (!currentRow) return;
+    const msg = clipboardHook.copy(currentRow);
+    if (msg) showMessage(msg);
+  }, [currentRow, clipboardHook, showMessage]);
 
-  const moveDown = useCallback(() => {
-    setSelectedRow((r) => Math.min(rowCount - 1, r + 1));
-  }, [rowCount, setSelectedRow]);
+  const handlePaste = useCallback(() => {
+    if (!currentRow) return;
+    const msg = clipboardHook.paste(currentRow);
+    if (msg) showMessage(msg);
+  }, [currentRow, clipboardHook, showMessage]);
 
-  const moveLeft = useCallback(() => {
-    setSelectedCol((c) => Math.max(0, c - 1));
-  }, [setSelectedCol]);
+  const handlePasteAll = useCallback(() => {
+    if (!currentRow) return;
+    const msg = clipboardHook.pasteAll(currentRow, fileCount);
+    if (msg) showMessage(msg);
+  }, [currentRow, clipboardHook, fileCount, showMessage]);
 
-  const moveRight = useCallback(() => {
-    setSelectedCol((c) => Math.min(fileCount - 1, c + 1));
-  }, [fileCount, setSelectedCol]);
-
-  const cycleColumn = useCallback(() => {
-    setSelectedCol((c) => (c + 1) % fileCount);
-  }, [fileCount, setSelectedCol]);
-
-  // Copy current cell to clipboard
-  const copy = useCallback(() => {
-    const row = diffRows[selectedRow];
-    if (!row) return;
-
-    const value = row.values[selectedCol];
-    if (value === null || value === undefined) {
-      showMessage("⚠ Cannot copy missing value");
-      return;
-    }
-
-    setClipboard({ key: row.key, value });
-    showMessage(`✓ Copied ${row.key}`);
-  }, [diffRows, selectedRow, selectedCol, showMessage, setClipboard]);
-
-  // Paste clipboard to current cell
-  const paste = useCallback(() => {
-    if (!clipboard) {
-      showMessage("⚠ Clipboard empty");
-      return;
-    }
-
-    const row = diffRows[selectedRow];
-    if (!row) return;
-
-    if (clipboard.key !== row.key) {
-      showMessage(`⚠ Can only paste to ${clipboard.key}`);
-      return;
-    }
-
-    const originalValue = row.values[selectedCol] ?? null;
-    const existingIndex = pendingChanges.findIndex(
-      (c) => c.key === row.key && c.fileIndex === selectedCol
+  const handleRevert = useCallback(() => {
+    if (!currentRow) return;
+    const existing = pendingChanges.find(
+      (c) => c.key === currentRow.key && c.fileIndex === selectedCol
     );
-
-    if (clipboard.value === originalValue) {
-      if (existingIndex >= 0) {
-        setPendingChanges((changes) => [
-          ...changes.slice(0, existingIndex),
-          ...changes.slice(existingIndex + 1),
-        ]);
-        showMessage("↩ Reverted to original");
-      } else {
-        showMessage("⚠ Already at original value");
-      }
-      return;
-    }
-
-    const newChange: PendingChange = {
-      key: row.key,
-      fileIndex: selectedCol,
-      oldValue: originalValue,
-      newValue: clipboard.value,
-    };
-
-    if (existingIndex >= 0) {
-      setPendingChanges((changes) => [
-        ...changes.slice(0, existingIndex),
-        newChange,
-        ...changes.slice(existingIndex + 1),
-      ]);
-    } else {
-      setPendingChanges((changes) => [...changes, newChange]);
-    }
-
-    showMessage(`✓ Pasted to ${files[selectedCol]?.filename}`);
-  }, [
-    clipboard,
-    diffRows,
-    selectedRow,
-    selectedCol,
-    pendingChanges,
-    files,
-    showMessage,
-    setPendingChanges,
-  ]);
-
-  // Paste to all other files
-  const pasteAll = useCallback(() => {
-    if (!clipboard) {
-      showMessage("⚠ Clipboard empty");
-      return;
-    }
-
-    const row = diffRows[selectedRow];
-    if (!row) return;
-
-    if (clipboard.key !== row.key) {
-      showMessage(`⚠ Can only paste to ${clipboard.key}`);
-      return;
-    }
-
-    const newChanges: PendingChange[] = [];
-    const revertedIndices: number[] = [];
-
-    for (let i = 0; i < fileCount; i++) {
-      if (i === selectedCol) continue;
-
-      const originalValue = row.values[i] ?? null;
-
-      if (clipboard.value !== originalValue) {
-        newChanges.push({
-          key: row.key,
-          fileIndex: i,
-          oldValue: originalValue,
-          newValue: clipboard.value,
-        });
-      } else {
-        revertedIndices.push(i);
-      }
-    }
-
-    const filtered = pendingChanges.filter(
-      (c) => !(c.key === row.key && c.fileIndex !== selectedCol)
-    );
-    setPendingChanges([...filtered, ...newChanges]);
-
-    const changedCount = newChanges.length;
-    const revertedCount = revertedIndices.length;
-    if (changedCount > 0 && revertedCount > 0) {
-      showMessage(
-        `✓ ${changedCount} changed, ${revertedCount} already matching`
-      );
-    } else if (changedCount > 0) {
-      showMessage(`✓ Pasted to ${changedCount} files`);
-    } else {
-      showMessage("⚠ All files already have this value");
-    }
-  }, [
-    clipboard,
-    diffRows,
-    selectedRow,
-    selectedCol,
-    fileCount,
-    pendingChanges,
-    showMessage,
-    setPendingChanges,
-  ]);
-
-  // Revert selected cell to original value
-  const revert = useCallback(() => {
-    const row = diffRows[selectedRow];
-    if (!row) return;
-
-    const existingIndex = pendingChanges.findIndex(
-      (c) => c.key === row.key && c.fileIndex === selectedCol
-    );
-
-    if (existingIndex < 0) {
+    if (!existing) {
       showMessage("⚠ No pending change to revert");
       return;
     }
-
-    setPendingChanges((changes) => [
-      ...changes.slice(0, existingIndex),
-      ...changes.slice(existingIndex + 1),
-    ]);
+    removeChange(currentRow.key, selectedCol);
     showMessage("↩ Reverted to original");
-  }, [
-    diffRows,
-    selectedRow,
-    selectedCol,
-    pendingChanges,
-    showMessage,
-    setPendingChanges,
-  ]);
+  }, [currentRow, pendingChanges, selectedCol, removeChange, showMessage]);
 
-  // ============ EDIT MODE HANDLERS ============
+  const handleUndo = useCallback(() => {
+    if (undoLast()) {
+      showMessage("↩ Undone");
+    } else {
+      showMessage("⚠ Nothing to undo");
+    }
+  }, [undoLast, showMessage]);
 
-  const enterEditMode = useCallback(() => {
-    const row = diffRows[selectedRow];
-    if (!row) return;
+  const handleUndoAll = useCallback(() => {
+    if (pendingChanges.length === 0) {
+      showMessage("⚠ Nothing to undo");
+      return;
+    }
+    clearChanges();
+    showMessage("↩ All changes undone");
+  }, [pendingChanges.length, clearChanges, showMessage]);
 
-    const currentValue = row.values[selectedCol] ?? "";
-    setEditMode({
-      phase: "editValue",
-      inputValue: currentValue,
-    });
-  }, [diffRows, selectedRow, selectedCol, setEditMode]);
+  const handleEnterEditMode = useCallback(() => {
+    if (!currentRow) return;
+    editModeHook.enterEditMode(currentRow);
+  }, [currentRow, editModeHook]);
 
-  const enterAddMode = useCallback(() => {
-    setEditMode({
-      phase: "addKey",
-      inputValue: "",
-    });
-  }, [setEditMode]);
-
-  const handleEditInput = useCallback(
-    (value: string) => {
-      setEditMode((prev) => (prev ? { ...prev, inputValue: value } : null));
-    },
-    [setEditMode]
-  );
-
-  const saveEdit = useCallback(
+  const handleSaveEdit = useCallback(
     (submittedValue?: string) => {
-      if (!editMode) return;
-
-      if (editMode.phase === "editValue") {
-        const row = diffRows[selectedRow];
-        if (!row) {
-          setEditMode(null);
-          return;
-        }
-
-        const originalValue = row.values[selectedCol] ?? null;
-        const newValue =
-          submittedValue !== undefined ? submittedValue : editMode.inputValue;
-
-        if (newValue === originalValue) {
-          setEditMode(null);
-          showMessage("⚠ No change");
-          return;
-        }
-
-        const existingIndex = pendingChanges.findIndex(
-          (c) => c.key === row.key && c.fileIndex === selectedCol
-        );
-
-        const newChange: PendingChange = {
-          key: row.key,
-          fileIndex: selectedCol,
-          oldValue: originalValue,
-          newValue,
-        };
-
-        if (existingIndex >= 0) {
-          setPendingChanges((changes) => [
-            ...changes.slice(0, existingIndex),
-            newChange,
-            ...changes.slice(existingIndex + 1),
-          ]);
-        } else {
-          setPendingChanges((changes) => [...changes, newChange]);
-        }
-
-        setEditMode(null);
-        showMessage("✓ Value updated");
-      } else if (editMode.phase === "addKey") {
-        const key = editMode.inputValue.trim();
-        if (!key) {
-          showMessage("⚠ Key cannot be empty");
-          return;
-        }
-        if (diffRows.some((r) => r.key === key)) {
-          showMessage("⚠ Key already exists");
-          return;
-        }
-        setEditMode({
-          phase: "addValue",
-          inputValue: "",
-          newKey: key,
-        });
-      } else if (editMode.phase === "addValue") {
-        const key = editMode.newKey!;
-        const value = editMode.inputValue;
-
-        const newChanges: PendingChange[] = files.map((_, i) => ({
-          key,
-          fileIndex: i,
-          oldValue: null,
-          newValue: value,
-          isNew: true,
-        }));
-
-        setPendingChanges((changes) => [...changes, ...newChanges]);
-
-        const newRow: DiffRow = {
-          key,
-          values: files.map(() => null),
-          status: "missing",
-        };
-        setDiffRows((rows) => [...rows, newRow]);
-        setSelectedRow(diffRows.length);
-
-        setEditMode(null);
-        showMessage(`✓ Added ${key}`);
-      }
+      const msg = editModeHook.saveEdit(currentRow, submittedValue);
+      if (msg) showMessage(msg);
     },
-    [
-      editMode,
-      diffRows,
-      selectedRow,
-      selectedCol,
-      pendingChanges,
-      files,
-      showMessage,
-      setEditMode,
-      setPendingChanges,
-      setDiffRows,
-      setSelectedRow,
-    ]
+    [currentRow, editModeHook, showMessage]
   );
 
-  const cancelEdit = useCallback(() => {
-    setEditMode(null);
-    showMessage("↩ Cancelled");
-  }, [showMessage, setEditMode]);
+  const handleCancelEdit = useCallback(() => {
+    const msg = cancelEdit();
+    showMessage(msg);
+  }, [cancelEdit, showMessage]);
 
-  const deleteVariable = useCallback(() => {
-    const row = diffRows[selectedRow];
-    if (!row) return;
-
-    const currentValue = row.values[selectedCol] ?? null;
+  const handleDeleteVariable = useCallback(() => {
+    if (!currentRow) return;
+    const currentValue = currentRow.values[selectedCol] ?? null;
     if (currentValue === null) {
       showMessage("⚠ Already missing in this file");
       return;
     }
 
-    const existingIndex = pendingChanges.findIndex(
-      (c) => c.key === row.key && c.fileIndex === selectedCol
-    );
-
-    const newChange: PendingChange = {
-      key: row.key,
+    upsertChange({
+      key: currentRow.key,
       fileIndex: selectedCol,
       oldValue: currentValue,
       newValue: null,
-    };
+    });
+    showMessage(`✗ Marked ${currentRow.key} for deletion`);
+  }, [currentRow, selectedCol, upsertChange, showMessage]);
 
-    if (existingIndex >= 0) {
-      setPendingChanges((changes) => [
-        ...changes.slice(0, existingIndex),
-        newChange,
-        ...changes.slice(existingIndex + 1),
-      ]);
-    } else {
-      setPendingChanges((changes) => [...changes, newChange]);
-    }
-
-    showMessage(`✗ Marked ${row.key} for deletion`);
-  }, [
-    diffRows,
-    selectedRow,
-    selectedCol,
-    pendingChanges,
-    showMessage,
-    setPendingChanges,
-  ]);
-
-  const deleteAll = useCallback(() => {
-    const row = diffRows[selectedRow];
-    if (!row) return;
+  const handleDeleteAll = useCallback(() => {
+    if (!currentRow) return;
 
     const newChanges: PendingChange[] = [];
-
     for (let i = 0; i < fileCount; i++) {
-      const currentValue = row.values[i] ?? null;
+      const currentValue = currentRow.values[i] ?? null;
       if (currentValue !== null) {
         newChanges.push({
-          key: row.key,
+          key: currentRow.key,
           fileIndex: i,
           oldValue: currentValue,
           newValue: null,
@@ -469,42 +201,14 @@ export function App({
       return;
     }
 
-    const filtered = pendingChanges.filter((c) => c.key !== row.key);
-    setPendingChanges([...filtered, ...newChanges]);
-
+    removeChangesForKey(currentRow.key);
+    addChanges(newChanges);
     showMessage(
-      `✗ Marked ${row.key} for deletion in ${newChanges.length} files`
+      `✗ Marked ${currentRow.key} for deletion in ${newChanges.length} files`
     );
-  }, [
-    diffRows,
-    selectedRow,
-    fileCount,
-    pendingChanges,
-    showMessage,
-    setPendingChanges,
-  ]);
+  }, [currentRow, fileCount, removeChangesForKey, addChanges, showMessage]);
 
-  const undo = useCallback(() => {
-    if (pendingChanges.length === 0) {
-      showMessage("⚠ Nothing to undo");
-      return;
-    }
-
-    setPendingChanges((changes) => changes.slice(0, -1));
-    showMessage("↩ Undone");
-  }, [pendingChanges, showMessage, setPendingChanges]);
-
-  const undoAll = useCallback(() => {
-    if (pendingChanges.length === 0) {
-      showMessage("⚠ Nothing to undo");
-      return;
-    }
-
-    setPendingChanges([]);
-    showMessage("↩ All changes undone");
-  }, [pendingChanges, showMessage, setPendingChanges]);
-
-  const save = useCallback(() => {
+  const handleSave = useCallback(() => {
     if (pendingChanges.length === 0) {
       showMessage("⚠ No changes to save");
       return;
@@ -529,96 +233,38 @@ export function App({
       return newRows.filter((row) => row.values.some((v) => v !== null));
     });
 
-    setPendingChanges([]);
+    clearChanges();
     showMessage("💾 Saved!");
-  }, [pendingChanges, onSave, showMessage, setDiffRows, setPendingChanges]);
+  }, [pendingChanges, onSave, setDiffRows, clearChanges, showMessage]);
 
-  const quit = useCallback(() => {
+  const handleQuit = useCallback(() => {
     if (pendingChanges.length > 0) {
       showMessage("⚠ Unsaved changes! Press q again");
     }
     onQuit();
-  }, [pendingChanges, onQuit, showMessage]);
+  }, [pendingChanges.length, onQuit, showMessage]);
 
-  // Keyboard handling
-  useKeyboard((key) => {
-    if (editMode) {
-      if (key.name === "escape") {
-        cancelEdit();
-      }
-      return;
-    }
-
-    switch (key.name) {
-      case "up":
-      case "k":
-        moveUp();
-        break;
-      case "down":
-      case "j":
-        moveDown();
-        break;
-      case "left":
-      case "h":
-        moveLeft();
-        break;
-      case "right":
-      case "l":
-        moveRight();
-        break;
-      case "tab":
-        cycleColumn();
-        break;
-      case "c":
-        copy();
-        break;
-      case "v":
-        if (key.shift) {
-          pasteAll();
-        } else {
-          paste();
-        }
-        break;
-      case "r":
-        revert();
-        break;
-      case "u":
-        if (key.shift) {
-          undoAll();
-        } else {
-          undo();
-        }
-        break;
-      case "s":
-        save();
-        break;
-      case "e":
-      case "return":
-        enterEditMode();
-        break;
-      case "a":
-        enterAddMode();
-        break;
-      case "d":
-        if (key.shift) {
-          deleteAll();
-        } else {
-          deleteVariable();
-        }
-        break;
-      case "q":
-        quit();
-        break;
-    }
+  // Keyboard bindings
+  useKeyBindings(editMode, {
+    ...navigation,
+    copy: handleCopy,
+    paste: handlePaste,
+    pasteAll: handlePasteAll,
+    revert: handleRevert,
+    undo: handleUndo,
+    undoAll: handleUndoAll,
+    save: handleSave,
+    enterEditMode: handleEnterEditMode,
+    enterAddMode: editModeHook.enterAddMode,
+    deleteVariable: handleDeleteVariable,
+    deleteAll: handleDeleteAll,
+    quit: handleQuit,
+    cancelEdit: handleCancelEdit,
   });
 
   // Count stats
-  const identicalCount = diffRows.filter(
-    (r) => r.status === "identical"
-  ).length;
-  const differentCount = diffRows.filter(
-    (r) => r.status === "different"
-  ).length;
+  const identicalCount = diffRows.filter((r) => r.status === "identical").length;
+  const differentCount = diffRows.filter((r) => r.status === "different").length;
   const missingCount = diffRows.filter((r) => r.status === "missing").length;
 
   return (
@@ -655,8 +301,8 @@ export function App({
       {/* Header with file names */}
       <Header />
 
-      {/* Edit mode input bar */}
-      {editMode && (
+      {/* Add mode input bar (only for adding new variables) */}
+      {editMode && editMode.phase !== "editValue" && (
         <box
           height={1}
           backgroundColor={Colors.selectedBg}
@@ -666,11 +312,7 @@ export function App({
         >
           <text>
             <span fg={Colors.selectedText}>
-              {editMode.phase === "editValue"
-                ? "Edit value: "
-                : editMode.phase === "addKey"
-                ? "New key: "
-                : `${editMode.newKey}=`}
+              {editMode.phase === "addKey" ? "New key: " : `${editMode.newKey}=`}
             </span>
           </text>
           <input
@@ -678,7 +320,7 @@ export function App({
             focused
             value={editMode.inputValue}
             onInput={handleEditInput}
-            onSubmit={saveEdit}
+            onSubmit={handleSaveEdit}
             onPaste={(e: { text: string }) => {
               if (inputRef.current) {
                 inputRef.current.insertText(e.text);
@@ -694,9 +336,18 @@ export function App({
 
       {/* Main diff view */}
       <box flexDirection="column" flexGrow={1} overflow="hidden">
-        <scrollbox focused={!editMode} style={{ flexGrow: 1 }}>
+        <scrollbox
+          focused={!editMode || editMode.phase === "editValue"}
+          style={{ flexGrow: 1 }}
+        >
           {diffRows.map((row, index) => (
-            <EnvRow key={row.key} row={row} rowIndex={index} />
+            <EnvRow
+              key={row.key}
+              row={row}
+              rowIndex={index}
+              onEditInput={handleEditInput}
+              onEditSubmit={handleSaveEdit}
+            />
           ))}
         </scrollbox>
       </box>

@@ -75,6 +75,7 @@ export const Colors = {
 
   // Pending change
   pendingChange: "#FB923C", // orange-400
+  pendingChangeBg: "#3D2F1F", // dark amber/brown
 
   // General UI
   dimText: "#78716C", // stone-500

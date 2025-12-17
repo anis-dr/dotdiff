@@ -4,6 +4,7 @@
 import { Context, Effect, Layer } from "effect"
 import { FileSystem } from "@effect/platform"
 import type { EnvFile, PendingChange } from "../types.js"
+import { sortKeys } from "../utils/index.js"
 
 export class EnvWriter extends Context.Tag("EnvWriter")<
   EnvWriter,
@@ -22,9 +23,7 @@ const serializeEnv = (variables: ReadonlyMap<string, string>): string => {
   const lines: string[] = []
   
   // Sort keys for consistent output
-  const sortedKeys = Array.from(variables.keys()).sort((a, b) =>
-    a.toLowerCase().localeCompare(b.toLowerCase())
-  )
+  const sortedKeys = sortKeys(variables.keys())
   
   for (const key of sortedKeys) {
     const value = variables.get(key)

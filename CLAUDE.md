@@ -17,6 +17,10 @@ bun run build      # Compile TypeScript
 bun run typecheck  # Type check without emitting
 ```
 
+## Code Rules
+
+**No arbitrary colors.** All colors must be defined in the `Colors` object in `src/types.ts`. Never use hardcoded hex values like `#FFFFFF` directly in components.
+
 <!-- effect-solutions:start -->
 ## Effect Best Practices
 

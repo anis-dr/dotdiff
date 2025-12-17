@@ -3,6 +3,7 @@
  */
 import { useAtomValue } from "jotai";
 import { Colors } from "../types.js";
+import { truncate, TRUNCATE_CLIPBOARD } from "../utils/index.js";
 import {
   clipboardAtom,
   messageAtom,
@@ -18,11 +19,7 @@ export function Footer() {
 
   // Truncate long clipboard values
   const clipboardDisplay = clipboard
-    ? `${clipboard.key}=${
-        clipboard.value.length > 30
-          ? clipboard.value.slice(0, 30) + "…"
-          : clipboard.value
-      }`
+    ? `${clipboard.key}=${truncate(clipboard.value, TRUNCATE_CLIPBOARD)}`
     : "empty";
 
   return (

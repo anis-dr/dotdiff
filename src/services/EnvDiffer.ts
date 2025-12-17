@@ -4,6 +4,7 @@
 import { Context, Effect, Layer } from "effect"
 import type { DiffRow, EnvFile, VariableStatus } from "../types.js"
 import { getVariableStatus } from "../types.js"
+import { sortKeys } from "../utils/index.js"
 
 export class EnvDiffer extends Context.Tag("EnvDiffer")<
   EnvDiffer,
@@ -26,9 +27,7 @@ export const EnvDifferLive = Layer.succeed(
         }
         
         // Sort keys alphabetically
-        const sortedKeys = Array.from(allKeys).sort((a, b) =>
-          a.toLowerCase().localeCompare(b.toLowerCase())
-        )
+        const sortedKeys = sortKeys(allKeys)
         
         // Build diff rows
         const rows: DiffRow[] = []

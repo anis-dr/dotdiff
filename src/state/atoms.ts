@@ -46,9 +46,7 @@ export const editModeAtom = atom<EditMode | null>(null);
 export const messageAtom = atom<string | null>(null);
 
 // =============================================================================
-// Derived Atoms
+// Layout State
 // =============================================================================
-
-export const fileCountAtom = atom((get) => get(filesAtom).length);
 
 export const colWidthsAtom = atom<ReadonlyArray<number>>([]);
