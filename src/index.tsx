@@ -1,5 +1,5 @@
 /**
- * env-differ CLI entry point
+ * envy CLI entry point
  * Syncs .env files with a TUI diff viewer
  */
 import { Args, Command, HelpDoc, Span, ValidationError } from "@effect/cli";
@@ -117,7 +117,7 @@ const renderApp = (
   });
 
 // Main command
-const envDiffer = Command.make("env-differ", { files: filesArg }, ({ files }) =>
+const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
   Effect.gen(function* () {
     const parser = yield* EnvParser;
     const differ = yield* EnvDiffer;
@@ -152,14 +152,14 @@ const envDiffer = Command.make("env-differ", { files: filesArg }, ({ files }) =>
 );
 
 // Build the CLI
-const cli = Command.run(envDiffer, {
-  name: "env-differ",
+const cli = Command.run(envy, {
+  name: "envy",
   version: "1.0.0",
   summary: Span.text("A TUI tool to compare and sync .env files"),
   footer: HelpDoc.blocks([
     HelpDoc.h2("Examples"),
-    HelpDoc.p("$ env-differ .env.local .env.prod"),
-    HelpDoc.p("$ env-differ .env.dev .env.staging .env.prod"),
+    HelpDoc.p("$ envy .env.local .env.prod"),
+    HelpDoc.p("$ envy .env.dev .env.staging .env.prod"),
     HelpDoc.h2("Keybindings"),
     HelpDoc.p(
       "↑↓/jk Navigate | ←→/hl Column | c Copy | v Paste | s Save | q Quit"
@@ -181,8 +181,8 @@ const program = cli(process.argv).pipe(
   Effect.provide(MainLive),
   Effect.catchIf(ValidationError.isValidationError, () =>
     Effect.gen(function* () {
-      yield* Console.error("\nUsage: env-differ <file1> <file2> [file3...]");
-      yield* Console.error("Run 'env-differ --help' for more information.");
+      yield* Console.error("\nUsage: envy <file1> <file2> [file3...]");
+      yield* Console.error("Run 'envy --help' for more information.");
       process.exit(1);
     })
   )

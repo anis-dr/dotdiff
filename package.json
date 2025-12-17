@@ -1,5 +1,5 @@
 {
-  "name": "env-differ",
+  "name": "envy",
   "module": "src/index.tsx",
   "type": "module",
   "private": true,

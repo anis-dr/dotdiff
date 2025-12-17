@@ -284,7 +284,7 @@ export function App({
       >
         <text>
           <b>
-            <span fg={Colors.selectedBg}>env-differ</span>
+            <span fg={Colors.selectedBg}>envy</span>
           </b>
           <span fg={Colors.dimText}> │ {fileCount} files</span>
         </text>

@@ -1,6 +1,6 @@
-# env-differ
+# envy
 
-A CLI application built with Effect, @effect/cli, and OpenTUI (React renderer).
+A TUI tool to compare and sync .env files. Built with Effect, @effect/cli, and OpenTUI.
 
 ## Tech Stack
 
