@@ -1,7 +1,7 @@
 /**
  * EnvRow component - displays a single variable row with status and inline editing
  */
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, VariableStatus } from "../types.js";
@@ -70,6 +70,10 @@ export function EnvRow({
   const icon = statusIcon[effectiveStatus];
   const color = statusColor[effectiveStatus];
 
+  const handlePaste = useCallback((e: { text: string }) => {
+    inputRef.current?.insertText(e.text);
+  }, []);
+
   return (
     <box flexDirection="column" width="100%">
       {/* Separator line */}
@@ -131,11 +135,7 @@ export function EnvRow({
                       value={editMode.inputValue}
                       onInput={onEditInput}
                       onSubmit={onEditSubmit}
-                      onPaste={(e: { text: string }) => {
-                        if (inputRef.current) {
-                          inputRef.current.insertText(e.text);
-                        }
-                      }}
+                      onPaste={handlePaste}
                       style={{ width: width - 4 }}
                     />
                   </box>
@@ -178,11 +178,7 @@ export function EnvRow({
                     value={editMode.inputValue}
                     onInput={onEditInput}
                     onSubmit={onEditSubmit}
-                    onPaste={(e: { text: string }) => {
-                      if (inputRef.current) {
-                        inputRef.current.insertText(e.text);
-                      }
-                    }}
+                    onPaste={handlePaste}
                     style={{ width: width - 2 }}
                   />
                 ) : (

@@ -50,7 +50,7 @@ export function App({
 
   // Custom hooks
   const pendingChangesHook = usePendingChanges();
-  const { pendingChanges, clearChanges, undoLast, upsertChange, removeChange, removeChangesForKey, addChanges } =
+  const { pendingChanges, clearChanges, undoLast, upsertChange, removeChange, removeChangesForKey, addChanges, findChange } =
     pendingChangesHook;
 
   const navigation = useNavigation(rowCount, fileCount);
@@ -115,16 +115,13 @@ export function App({
 
   const handleRevert = useCallback(() => {
     if (!currentRow) return;
-    const existing = pendingChanges.find(
-      (c) => c.key === currentRow.key && c.fileIndex === selectedCol
-    );
-    if (!existing) {
+    if (!findChange(currentRow.key, selectedCol)) {
       showMessage("⚠ No pending change to revert");
       return;
     }
     removeChange(currentRow.key, selectedCol);
     showMessage("↩ Reverted to original");
-  }, [currentRow, pendingChanges, selectedCol, removeChange, showMessage]);
+  }, [currentRow, selectedCol, findChange, removeChange, showMessage]);
 
   const handleUndo = useCallback(() => {
     if (undoLast()) {
@@ -260,10 +257,14 @@ export function App({
     cancelEdit: handleCancelEdit,
   });
 
-  // Count stats
-  const identicalCount = diffRows.filter((r) => r.status === "identical").length;
-  const differentCount = diffRows.filter((r) => r.status === "different").length;
-  const missingCount = diffRows.filter((r) => r.status === "missing").length;
+  // Count stats in single pass
+  const statusCounts = useMemo(() => {
+    const counts = { identical: 0, different: 0, missing: 0 };
+    for (const row of diffRows) {
+      counts[row.status]++;
+    }
+    return counts;
+  }, [diffRows]);
 
   return (
     <box
@@ -288,11 +289,11 @@ export function App({
           <span fg={Colors.dimText}> │ {fileCount} files</span>
         </text>
         <text>
-          <span fg={Colors.identical}>● {identicalCount}</span>
+          <span fg={Colors.identical}>● {statusCounts.identical}</span>
           <span fg={Colors.dimText}> </span>
-          <span fg={Colors.different}>◐ {differentCount}</span>
+          <span fg={Colors.different}>◐ {statusCounts.different}</span>
           <span fg={Colors.dimText}> </span>
-          <span fg={Colors.missing}>○ {missingCount}</span>
+          <span fg={Colors.missing}>○ {statusCounts.missing}</span>
         </text>
       </box>
 

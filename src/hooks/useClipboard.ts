@@ -3,12 +3,8 @@
  */
 import { useCallback } from "react";
 import { useAtom, useAtomValue } from "jotai";
-import type { Clipboard, DiffRow, EnvFile, PendingChange } from "../types.js";
-import {
-  clipboardAtom,
-  filesAtom,
-  selectedColAtom,
-} from "../state/atoms.js";
+import type { Clipboard, DiffRow, PendingChange } from "../types.js";
+import { clipboardAtom, filesAtom, selectedColAtom } from "../state/atoms.js";
 import type { UsePendingChangesReturn } from "./usePendingChanges.js";
 
 export interface UseClipboardReturn {
@@ -25,12 +21,31 @@ export function useClipboard(
   const files = useAtomValue(filesAtom);
   const selectedCol = useAtomValue(selectedColAtom);
 
-  const { pendingChanges, upsertChange, removeChange, removeChangesForKey, addChanges } =
-    pendingChangesHook;
+  const {
+    pendingChanges,
+    upsertChange,
+    removeChange,
+    removeChangesForKey,
+    addChanges,
+    findChange,
+  } = pendingChangesHook;
+
+  /** Validate clipboard before paste operations, returns clipboard if valid */
+  const getValidClipboard = (
+    row: DiffRow
+  ): { clipboard: Clipboard } | { error: string } => {
+    if (!clipboard) return { error: "⚠ Clipboard empty" };
+    if (clipboard.key !== row.key)
+      return { error: `⚠ Can only paste to ${clipboard.key}` };
+    return { clipboard };
+  };
 
   const copy = useCallback(
     (row: DiffRow): string | null => {
-      const value = row.values[selectedCol];
+      // Use pending change value if exists, otherwise original
+      const pending = findChange(row.key, selectedCol);
+      const value = pending?.newValue ?? row.values[selectedCol];
+
       if (value === null || value === undefined) {
         return "⚠ Cannot copy missing value";
       }
@@ -38,22 +53,18 @@ export function useClipboard(
       setClipboard({ key: row.key, value });
       return `✓ Copied ${row.key}`;
     },
-    [selectedCol, setClipboard]
+    [selectedCol, findChange, setClipboard]
   );
 
   const paste = useCallback(
     (row: DiffRow): string | null => {
-      if (!clipboard) {
-        return "⚠ Clipboard empty";
-      }
-
-      if (clipboard.key !== row.key) {
-        return `⚠ Can only paste to ${clipboard.key}`;
-      }
+      const result = getValidClipboard(row);
+      if ("error" in result) return result.error;
+      const { clipboard: cb } = result;
 
       const originalValue = row.values[selectedCol] ?? null;
 
-      if (clipboard.value === originalValue) {
+      if (cb.value === originalValue) {
         const existing = pendingChanges.find(
           (c) => c.key === row.key && c.fileIndex === selectedCol
         );
@@ -68,7 +79,7 @@ export function useClipboard(
         key: row.key,
         fileIndex: selectedCol,
         oldValue: originalValue,
-        newValue: clipboard.value,
+        newValue: cb.value,
       };
 
       upsertChange(newChange);
@@ -79,13 +90,9 @@ export function useClipboard(
 
   const pasteAll = useCallback(
     (row: DiffRow, fileCount: number): string | null => {
-      if (!clipboard) {
-        return "⚠ Clipboard empty";
-      }
-
-      if (clipboard.key !== row.key) {
-        return `⚠ Can only paste to ${clipboard.key}`;
-      }
+      const result = getValidClipboard(row);
+      if ("error" in result) return result.error;
+      const { clipboard: cb } = result;
 
       const newChanges: PendingChange[] = [];
       let revertedCount = 0;
@@ -95,12 +102,12 @@ export function useClipboard(
 
         const originalValue = row.values[i] ?? null;
 
-        if (clipboard.value !== originalValue) {
+        if (cb.value !== originalValue) {
           newChanges.push({
             key: row.key,
             fileIndex: i,
             oldValue: originalValue,
-            newValue: clipboard.value,
+            newValue: cb.value,
           });
         } else {
           revertedCount++;
@@ -130,4 +137,3 @@ export function useClipboard(
     pasteAll,
   };
 }
-
