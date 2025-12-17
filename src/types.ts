@@ -36,9 +36,9 @@ export interface PendingChange {
 
 /** Edit mode state */
 export interface EditMode {
-  readonly phase: "editValue" | "addKey" | "addValue";
+  readonly phase: "editValue" | "addKey";
   readonly inputValue: string;
-  readonly newKey?: string; // when adding, stores the key being added
+  readonly isNewRow?: boolean; // true when editing a newly added row's key
 }
 
 /** Application state */

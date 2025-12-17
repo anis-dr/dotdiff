@@ -1,10 +1,9 @@
 /**
  * App component - main TUI with Jotai state management and keyboard handling
  */
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useTerminalDimensions } from "@opentui/react";
-import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, EnvFile, PendingChange } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";
 import {
@@ -39,7 +38,6 @@ export function App({
   onQuit,
 }: AppProps) {
   const { width: terminalWidth } = useTerminalDimensions();
-  const inputRef = useRef<InputRenderable>(null);
 
   // Core state
   const [files, setFiles] = useAtom(filesAtom);
@@ -301,48 +299,12 @@ export function App({
       {/* Header with file names */}
       <Header />
 
-      {/* Add mode input bar (only for adding new variables) */}
-      {editMode && editMode.phase !== "editValue" && (
-        <box
-          height={1}
-          backgroundColor={Colors.selectedBg}
-          paddingLeft={1}
-          paddingRight={1}
-          flexDirection="row"
-        >
-          <text>
-            <span fg={Colors.selectedText}>
-              {editMode.phase === "addKey" ? "New key: " : `${editMode.newKey}=`}
-            </span>
-          </text>
-          <input
-            ref={inputRef}
-            focused
-            value={editMode.inputValue}
-            onInput={handleEditInput}
-            onSubmit={handleSaveEdit}
-            onPaste={(e: { text: string }) => {
-              if (inputRef.current) {
-                inputRef.current.insertText(e.text);
-              }
-            }}
-            style={{ flexGrow: 1 }}
-          />
-          <text>
-            <span fg={Colors.selectedText}> [Enter] Save [Esc] Cancel</span>
-          </text>
-        </box>
-      )}
-
       {/* Main diff view */}
       <box flexDirection="column" flexGrow={1} overflow="hidden">
-        <scrollbox
-          focused={!editMode || editMode.phase === "editValue"}
-          style={{ flexGrow: 1 }}
-        >
+        <scrollbox focused={!editMode} style={{ flexGrow: 1 }}>
           {diffRows.map((row, index) => (
             <EnvRow
-              key={row.key}
+              key={row.key || `new-${index}`}
               row={row}
               rowIndex={index}
               onEditInput={handleEditInput}

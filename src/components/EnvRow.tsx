@@ -5,7 +5,7 @@ import { useRef } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, VariableStatus } from "../types.js";
-import { Colors } from "../types.js";
+import { Colors, getVariableStatus } from "../types.js";
 import { truncate } from "../utils/index.js";
 import {
   colWidthsAtom,
@@ -48,11 +48,10 @@ export function EnvRow({
   const inputRef = useRef<InputRenderable>(null);
 
   const isSelectedRow = rowIndex === selectedRow;
-  const icon = statusIcon[row.status];
-  const color = statusColor[row.status];
 
-  // Check if this cell is being edited
+  // Check edit modes
   const isEditingValue = editMode?.phase === "editValue" && isSelectedRow;
+  const isEditingKey = editMode?.phase === "addKey" && isSelectedRow;
 
   // Find pending changes for this row
   const pendingByFile = new Map<number, (typeof pendingChanges)[number]>();
@@ -61,6 +60,15 @@ export function EnvRow({
       pendingByFile.set(change.fileIndex, change);
     }
   }
+
+  // Compute effective values (original + pending changes) for status calculation
+  const effectiveValues = row.values.map((value, i) => {
+    const pending = pendingByFile.get(i);
+    return pending !== undefined ? pending.newValue : value;
+  });
+  const effectiveStatus = pendingByFile.size > 0 ? getVariableStatus(effectiveValues) : row.status;
+  const icon = statusIcon[effectiveStatus];
+  const color = statusColor[effectiveStatus];
 
   return (
     <box flexDirection="column" width="100%">
@@ -111,31 +119,56 @@ export function EnvRow({
                     : {})}
                 flexDirection="column"
               >
-                {/* Key line */}
-                <text>
-                  <span fg={isSelectedCell ? Colors.selectedText : color}>
-                    {icon}{" "}
-                  </span>
-                  {isSelectedCell ? (
-                    <b>
-                      <span fg={Colors.selectedText}>{row.key}</span>
-                    </b>
-                  ) : (
-                    <span fg={Colors.primaryText}>{row.key}</span>
-                  )}
-                  {hasPending && !isEditingThisCell && (
-                    <span
-                      fg={
-                        isSelectedCell
-                          ? Colors.selectedText
-                          : Colors.pendingChange
-                      }
-                    >
-                      {" "}
-                      ✎
+                {/* Key line - show input when adding new key */}
+                {isEditingKey && isSelectedCell ? (
+                  <box flexDirection="row">
+                    <text>
+                      <span fg={Colors.selectedText}>{icon} </span>
+                    </text>
+                    <input
+                      ref={inputRef}
+                      focused
+                      value={editMode.inputValue}
+                      onInput={onEditInput}
+                      onSubmit={onEditSubmit}
+                      onPaste={(e: { text: string }) => {
+                        if (inputRef.current) {
+                          inputRef.current.insertText(e.text);
+                        }
+                      }}
+                      style={{ width: width - 4 }}
+                    />
+                  </box>
+                ) : (
+                  <text>
+                    <span fg={isSelectedCell ? Colors.selectedText : color}>
+                      {icon}{" "}
                     </span>
-                  )}
-                </text>
+                    {isSelectedCell ? (
+                      <b>
+                        <span fg={Colors.selectedText}>
+                          {row.key || "(new variable)"}
+                        </span>
+                      </b>
+                    ) : (
+                      <span fg={Colors.primaryText}>
+                        {row.key || "(new variable)"}
+                      </span>
+                    )}
+                    {hasPending && !isEditingThisCell && (
+                      <span
+                        fg={
+                          isSelectedCell
+                            ? Colors.selectedText
+                            : Colors.pendingChange
+                        }
+                      >
+                        {" "}
+                        ✎
+                      </span>
+                    )}
+                  </text>
+                )}
 
                 {/* Value line - show input when editing this cell */}
                 {isEditingThisCell ? (

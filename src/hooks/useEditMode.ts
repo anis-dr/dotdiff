@@ -3,7 +3,7 @@
  */
 import { useCallback } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import type { DiffRow, EditMode, EnvFile, PendingChange } from "../types.js";
+import type { DiffRow, EditMode, PendingChange } from "../types.js";
 import {
   diffRowsAtom,
   editModeAtom,
@@ -32,10 +32,9 @@ export function useEditMode(
   const [diffRows, setDiffRows] = useAtom(diffRowsAtom);
   const files = useAtomValue(filesAtom);
   const selectedCol = useAtomValue(selectedColAtom);
-  const setSelectedRow = useSetAtom(selectedRowAtom);
+  const [selectedRow, setSelectedRow] = useAtom(selectedRowAtom);
 
-  const { pendingChanges, upsertChange, addChanges, findChange } =
-    pendingChangesHook;
+  const { upsertChange, findChange } = pendingChangesHook;
 
   const enterEditMode = useCallback(
     (row: DiffRow) => {
@@ -51,11 +50,24 @@ export function useEditMode(
   );
 
   const enterAddMode = useCallback(() => {
+    // Create placeholder row with empty key
+    const placeholderRow: DiffRow = {
+      key: "",
+      values: files.map(() => null),
+      status: "missing",
+    };
+
+    // Append to diffRows and select it
+    setDiffRows((rows) => [...rows, placeholderRow]);
+    setSelectedRow(diffRows.length); // Will be the index of the new row
+
+    // Enter addKey phase
     setEditMode({
       phase: "addKey",
       inputValue: "",
+      isNewRow: true,
     });
-  }, [setEditMode]);
+  }, [files, diffRows.length, setDiffRows, setSelectedRow, setEditMode]);
 
   const handleEditInput = useCallback(
     (value: string) => {
@@ -71,9 +83,16 @@ export function useEditMode(
       const originalValue = row.values[selectedCol] ?? null;
       const newValue =
         submittedValue !== undefined ? submittedValue : editMode.inputValue;
+      const existingPending = findChange(row.key, selectedCol);
 
+      // If changing back to original value
       if (newValue === originalValue) {
         setEditMode(null);
+        if (existingPending) {
+          // Remove the pending change - we're reverting to original
+          pendingChangesHook.removeChange(row.key, selectedCol);
+          return "↩ Reverted to original";
+        }
         return "⚠ No change";
       }
 
@@ -82,13 +101,14 @@ export function useEditMode(
         fileIndex: selectedCol,
         oldValue: originalValue,
         newValue,
+        isNew: row.values.every((v) => v === null), // Mark as new if all values are null
       };
 
       upsertChange(newChange);
       setEditMode(null);
       return "✓ Value updated";
     },
-    [editMode, selectedCol, upsertChange, setEditMode]
+    [editMode, selectedCol, upsertChange, findChange, pendingChangesHook, setEditMode]
   );
 
   const saveAddKey = useCallback((): string | null => {
@@ -98,44 +118,25 @@ export function useEditMode(
     if (!key) {
       return "⚠ Key cannot be empty";
     }
+    // Check for duplicates (excluding the placeholder row which has empty key)
     if (diffRows.some((r) => r.key === key)) {
       return "⚠ Key already exists";
     }
-    setEditMode({
-      phase: "addValue",
-      inputValue: "",
-      newKey: key,
+
+    // Update the placeholder row with the new key
+    setDiffRows((rows) => {
+      const newRows = [...rows];
+      const lastIndex = newRows.length - 1;
+      const lastRow = newRows[lastIndex];
+      if (lastIndex >= 0 && lastRow && lastRow.key === "") {
+        newRows[lastIndex] = { ...lastRow, key };
+      }
+      return newRows;
     });
-    return null; // No message, continue to next phase
-  }, [editMode, diffRows, setEditMode]);
-
-  const saveAddValue = useCallback((): string | null => {
-    if (!editMode || !editMode.newKey) return null;
-
-    const key = editMode.newKey;
-    const value = editMode.inputValue;
-
-    const newChanges: PendingChange[] = files.map((_, i) => ({
-      key,
-      fileIndex: i,
-      oldValue: null,
-      newValue: value,
-      isNew: true,
-    }));
-
-    addChanges(newChanges);
-
-    const newRow: DiffRow = {
-      key,
-      values: files.map(() => null),
-      status: "missing",
-    };
-    setDiffRows((rows) => [...rows, newRow]);
-    setSelectedRow(diffRows.length);
 
     setEditMode(null);
-    return `✓ Added ${key}`;
-  }, [editMode, files, diffRows.length, addChanges, setDiffRows, setSelectedRow, setEditMode]);
+    return `✓ Added ${key} — edit cells to set values`;
+  }, [editMode, diffRows, setDiffRows, setEditMode]);
 
   const saveEdit = useCallback(
     (row: DiffRow | null, submittedValue?: string): string | null => {
@@ -149,19 +150,33 @@ export function useEditMode(
         return saveEditValue(row, submittedValue);
       } else if (editMode.phase === "addKey") {
         return saveAddKey();
-      } else if (editMode.phase === "addValue") {
-        return saveAddValue();
       }
 
       return null;
     },
-    [editMode, saveEditValue, saveAddKey, saveAddValue, setEditMode]
+    [editMode, saveEditValue, saveAddKey, setEditMode]
   );
 
   const cancelEdit = useCallback((): string => {
+    // If we're cancelling a new row add, remove the placeholder row
+    if (editMode?.isNewRow) {
+      setDiffRows((rows) => {
+        // Remove the last row if it's the placeholder (empty key)
+        const lastRow = rows[rows.length - 1];
+        if (rows.length > 0 && lastRow && lastRow.key === "") {
+          return rows.slice(0, -1);
+        }
+        return rows;
+      });
+      // Move selection back if needed
+      if (selectedRow >= diffRows.length - 1) {
+        setSelectedRow(Math.max(0, diffRows.length - 2));
+      }
+    }
+
     setEditMode(null);
     return "↩ Cancelled";
-  }, [setEditMode]);
+  }, [editMode, diffRows.length, selectedRow, setDiffRows, setSelectedRow, setEditMode]);
 
   return {
     editMode,
@@ -172,4 +187,3 @@ export function useEditMode(
     cancelEdit,
   };
 }
-
