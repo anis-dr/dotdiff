@@ -4,16 +4,16 @@
  * This hook listens to the fileChangeEventAtom and triggers
  * file re-reads when external changes are detected.
  */
-import { useEffect } from "react";
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
-import { Effect } from "effect";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { FileSystem } from "@effect/platform";
-import { fileChangeEventAtom } from "../state/runtime.js";
-import { filesAtom } from "../state/appState.js";
-import { updateFileFromDiskOp, setMessageOp } from "../state/atomicOps.js";
-import { findFileIndex } from "../state/fileSync.js";
-import { parseEnvToMap } from "../services/envFormat.js";
 import { BunContext } from "@effect/platform-bun";
+import { Effect } from "effect";
+import { useEffect } from "react";
+import { parseEnvToMap } from "../services/envFormat.js";
+import { filesAtom } from "../state/appState.js";
+import { setMessageOp, updateFileFromDiskOp } from "../state/atomicOps.js";
+import { findFileIndex } from "../state/fileSync.js";
+import { fileChangeEventAtom } from "../state/runtime.js";
 
 /**
  * Subscribe to file change events and update state when files change on disk.
@@ -48,14 +48,14 @@ export function useFileWatcher(): void {
     }
 
     // Re-read the file from disk
-    const readAndUpdate = Effect.gen(function* () {
+    const readAndUpdate = Effect.gen(function*() {
       const fs = yield* FileSystem.FileSystem;
       const content = yield* fs.readFileString(file.path);
       const newVariables = parseEnvToMap(content);
       return newVariables;
     }).pipe(
       Effect.provide(BunContext.layer),
-      Effect.runPromise
+      Effect.runPromise,
     );
 
     readAndUpdate

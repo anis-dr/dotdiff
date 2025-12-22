@@ -12,8 +12,8 @@ import {
   EnvParserLive,
   EnvWriter,
   EnvWriterLive,
-  FileWatcherLive,
   type FileChangeEvent,
+  FileWatcherLive,
 } from "../services/index.js";
 import type { EnvFile, PendingChange } from "../types.js";
 
@@ -26,7 +26,7 @@ const AppServicesLive = Layer.mergeAll(
   EnvParserLive,
   EnvDifferLive,
   EnvWriterLive,
-  FileWatcherLive
+  FileWatcherLive,
 ).pipe(Layer.provideMerge(BunContext.layer));
 
 /**
@@ -51,11 +51,11 @@ export interface SaveChangesArgs {
  *   saveChanges({ files, changes: pendingList })
  */
 export const saveChangesAtom = appRuntime.fn(
-  Effect.fnUntraced(function* (args: SaveChangesArgs) {
+  Effect.fnUntraced(function*(args: SaveChangesArgs) {
     const writer = yield* EnvWriter;
     const updatedFiles = yield* writer.applyChanges(args.files, args.changes);
     return updatedFiles;
-  })
+  }),
 );
 
 /**
@@ -65,7 +65,7 @@ export const saveChangesAtom = appRuntime.fn(
  * have separate layer instances.
  */
 export const fileChangeEventAtom = Atom.make<FileChangeEvent | null>(null).pipe(
-  Atom.keepAlive
+  Atom.keepAlive,
 );
 
 /**

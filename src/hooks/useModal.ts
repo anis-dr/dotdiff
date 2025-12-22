@@ -3,10 +3,10 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
-import type { ModalState } from "../types.js";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { modalAtom } from "../state/appState.js";
-import { openModalOp, closeModalOp } from "../state/atomicOps.js";
+import { closeModalOp, openModalOp } from "../state/atomicOps.js";
+import type { ModalState } from "../types.js";
 
 export interface UseModal {
   modal: ModalState | null;

@@ -9,23 +9,23 @@
  *   upsertChange({ key: "FOO", fileIndex: 0, oldValue: "bar", newValue: "baz" })
  */
 import { Atom } from "@effect-atom/atom-react";
-import type { PendingChange, EnvFile, Clipboard, ModalState, EditMode } from "../types.js";
+import type { Clipboard, EditMode, EnvFile, ModalState, PendingChange } from "../types.js";
 import {
-  pendingAtom,
-  conflictsAtom,
-  selectionAtom,
-  filesAtom,
   clipboardAtom,
-  modalAtom,
-  searchAtom,
-  editModeAtom,
-  messageAtom,
   colWidthsAtom,
-  fileCountAtom,
-  rowCountAtom,
+  conflictsAtom,
+  editModeAtom,
   effectiveDiffRowsAtom,
+  fileCountAtom,
+  filesAtom,
   filteredRowIndicesAtom,
+  messageAtom,
+  modalAtom,
+  pendingAtom,
   pendingKey,
+  rowCountAtom,
+  searchAtom,
+  selectionAtom,
 } from "./appState.js";
 
 // =============================================================================
@@ -47,32 +47,32 @@ export const upsertChangeOp = Atom.fnSync((change: PendingChange, get) => {
  * Remove a specific pending change (also clears its conflict)
  */
 export const removeChangeOp = Atom.fnSync(
-  (args: { varKey: string; fileIndex: number }, get) => {
+  (args: { varKey: string; fileIndex: number; }, get) => {
     const pending = get(pendingAtom);
     const key = pendingKey(args.varKey, args.fileIndex);
-    
+
     if (!pending.has(key)) return;
-    
+
     const conflicts = get(conflictsAtom);
     const newPending = new Map(pending);
     newPending.delete(key);
-    
+
     const newConflicts = new Set(conflicts);
     newConflicts.delete(key);
-    
+
     get.set(pendingAtom, newPending);
     get.set(conflictsAtom, newConflicts);
-  }
+  },
 );
 
 /**
  * Remove all pending changes for a key (all files), optionally excluding one file
  */
 export const removeChangesForKeyOp = Atom.fnSync(
-  (args: { varKey: string; excludeFileIndex?: number }, get) => {
+  (args: { varKey: string; excludeFileIndex?: number; }, get) => {
     const pending = get(pendingAtom);
     const newPending = new Map<string, PendingChange>();
-    
+
     for (const [key, change] of pending) {
       if (change.key === args.varKey) {
         if (args.excludeFileIndex !== undefined && change.fileIndex === args.excludeFileIndex) {
@@ -83,9 +83,9 @@ export const removeChangesForKeyOp = Atom.fnSync(
         newPending.set(key, change);
       }
     }
-    
+
     get.set(pendingAtom, newPending);
-  }
+  },
 );
 
 /**
@@ -102,19 +102,19 @@ export const clearChangesOp = Atom.fnSync((_: void, get) => {
  */
 export const undoLastOp = Atom.fnSync((_: void, get): boolean => {
   const pending = get(pendingAtom);
-  
+
   if (pending.size === 0) {
     return false;
   }
-  
+
   // Map preserves insertion order, so we can get the last key
   const keys = Array.from(pending.keys());
   const lastKey = keys[keys.length - 1]!;
-  
+
   const newPending = new Map(pending);
   newPending.delete(lastKey);
   get.set(pendingAtom, newPending);
-  
+
   return true;
 }, { initialValue: false });
 
@@ -125,14 +125,14 @@ export const addChangesOp = Atom.fnSync(
   (changes: ReadonlyArray<PendingChange>, get) => {
     const pending = get(pendingAtom);
     const newPending = new Map(pending);
-    
+
     for (const change of changes) {
       const key = pendingKey(change.key, change.fileIndex);
       newPending.set(key, change);
     }
-    
+
     get.set(pendingAtom, newPending);
-  }
+  },
 );
 
 // =============================================================================
@@ -143,9 +143,9 @@ export const addChangesOp = Atom.fnSync(
  * Set selection row and column
  */
 export const setSelectionOp = Atom.fnSync(
-  (args: { row: number; col: number }, get) => {
+  (args: { row: number; col: number; }, get) => {
     get.set(selectionAtom, { row: args.row, col: args.col });
-  }
+  },
 );
 
 /**
@@ -283,48 +283,46 @@ export const prevDiffOp = Atom.fnSync((_: void, get) => {
 export const setFilesOp = Atom.fnSync(
   (files: ReadonlyArray<EnvFile>, get) => {
     get.set(filesAtom, files);
-  }
+  },
 );
 
 /**
  * Update a file from disk and detect conflicts
  */
 export const updateFileFromDiskOp = Atom.fnSync(
-  (args: { fileIndex: number; newVariables: ReadonlyMap<string, string> }, get) => {
+  (args: { fileIndex: number; newVariables: ReadonlyMap<string, string>; }, get) => {
     const files = get(filesAtom);
     const file = files[args.fileIndex];
     if (!file) return;
-    
+
     const pending = get(pendingAtom);
     const conflicts = get(conflictsAtom);
-    
+
     // Detect conflicts: pending changes where oldValue no longer matches disk
     const newConflicts = new Set(conflicts);
-    
+
     for (const [pKey, change] of pending) {
       if (change.fileIndex !== args.fileIndex) continue;
-      
+
       const diskValue = args.newVariables.get(change.key) ?? null;
       const wasConflict = conflicts.has(pKey);
-      
+
       // Conflict if disk value differs from what we recorded as oldValue
       const isConflict = diskValue !== change.oldValue;
-      
+
       if (isConflict && !wasConflict) {
         newConflicts.add(pKey);
       } else if (!isConflict && wasConflict) {
         newConflicts.delete(pKey);
       }
     }
-    
+
     // Update the file in state
-    const newFiles = files.map((f, i) =>
-      i === args.fileIndex ? { ...f, variables: args.newVariables } : f
-    );
-    
+    const newFiles = files.map((f, i) => i === args.fileIndex ? { ...f, variables: args.newVariables } : f);
+
     get.set(filesAtom, newFiles);
     get.set(conflictsAtom, newConflicts);
-  }
+  },
 );
 
 // =============================================================================
@@ -362,7 +360,7 @@ export const enterAddModeOp = Atom.fnSync((_: void, get) => {
 export const updateEditInputOp = Atom.fnSync((value: string, get) => {
   const editMode = get(editModeAtom);
   if (!editMode) return;
-  
+
   get.set(editModeAtom, {
     ...editMode,
     inputValue: value,
@@ -453,5 +451,5 @@ export const setMessageOp = Atom.fnSync((message: string | null, get) => {
 export const setColWidthsOp = Atom.fnSync(
   (colWidths: ReadonlyArray<number>, get) => {
     get.set(colWidthsAtom, colWidths);
-  }
+  },
 );

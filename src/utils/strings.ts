@@ -16,4 +16,4 @@ export const truncate = (str: string, maxLen: number): string =>
  * Handles null (missing), empty string, and regular values
  */
 export const formatDisplayValue = (value: string | null): string =>
-  value === null ? "—" : value === "" ? '""' : value;
+  value === null ? "—" : value === "" ? "\"\"" : value;

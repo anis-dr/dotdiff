@@ -3,10 +3,10 @@
  * Displays old->new when pending changes exist
  */
 import { useAtomValue } from "@effect-atom/atom-react";
+import { appStateAtom, pendingKey } from "../state/appState.js";
 import type { DiffRow } from "../types.js";
 import { Colors } from "../types.js";
 import { formatDisplayValue } from "../utils/index.js";
-import { appStateAtom, pendingKey } from "../state/appState.js";
 
 interface InspectorProps {
   readonly row: DiffRow | null;
@@ -14,7 +14,7 @@ interface InspectorProps {
 
 export function Inspector({ row }: InspectorProps) {
   const state = useAtomValue(appStateAtom);
-  const { files, selection, pending, conflicts } = state;
+  const { conflicts, files, pending, selection } = state;
   const selectedCol = selection.col;
 
   if (!row) {
@@ -51,13 +51,13 @@ export function Inspector({ row }: InspectorProps) {
       {/* Key line */}
       <box flexDirection="row">
         <text>
-          <span fg={Colors.dimText}>Key: </span>
+          <span fg={Colors.dimText}>Key:</span>
           <b>
             <span fg={Colors.primaryText}>{row.key || "(new variable)"}</span>
           </b>
           {selectedFile && (
             <>
-              <span fg={Colors.dimText}> in </span>
+              <span fg={Colors.dimText}>in</span>
               <span fg={Colors.selectedBg}>{selectedFile.filename}</span>
             </>
           )}
@@ -65,59 +65,61 @@ export function Inspector({ row }: InspectorProps) {
       </box>
 
       {/* Value line(s) */}
-      {selectedPending ? (
-        <box flexDirection="column">
-          {hasConflict ? (
-            <>
-              <text>
-                <span fg={Colors.dimText}>Old: </span>
-                <span fg={Colors.secondaryText}>
-                  {formatDisplayValue(selectedPending.oldValue)}
-                </span>
-                <span fg={Colors.missing}> (stale)</span>
-              </text>
-              <text>
-                <span fg={Colors.dimText}>Disk: </span>
-                <span fg={Colors.missing}>
-                  {formatDisplayValue(diskValue)}
-                </span>
-                <span fg={Colors.missing}> ⚠ changed externally</span>
-              </text>
-              <text>
-                <span fg={Colors.dimText}>Pending: </span>
-                <span fg={Colors.pendingChange}>
-                  {formatDisplayValue(selectedPending.newValue)}
-                </span>
-              </text>
-            </>
-          ) : (
-            <>
-              <text>
-                <span fg={Colors.dimText}>Old: </span>
-                <span fg={Colors.secondaryText}>
-                  {formatDisplayValue(selectedPending.oldValue)}
-                </span>
-              </text>
-              <text>
-                <span fg={Colors.dimText}>New: </span>
-                <span fg={Colors.pendingChange}>
-                  {formatDisplayValue(selectedPending.newValue)}
-                </span>
-                {selectedPending.newValue === null && (
-                  <span fg={Colors.missing}> (deleted)</span>
-                )}
-              </text>
-            </>
-          )}
-        </box>
-      ) : (
-        <text>
-          <span fg={Colors.dimText}>Value: </span>
-          <span fg={selectedValue === null ? Colors.missing : Colors.primaryText}>
-            {formatDisplayValue(selectedValue)}
-          </span>
-        </text>
-      )}
+      {selectedPending ?
+        (
+          <box flexDirection="column">
+            {hasConflict ?
+              (
+                <>
+                  <text>
+                    <span fg={Colors.dimText}>Old:</span>
+                    <span fg={Colors.secondaryText}>
+                      {formatDisplayValue(selectedPending.oldValue)}
+                    </span>
+                    <span fg={Colors.missing}>(stale)</span>
+                  </text>
+                  <text>
+                    <span fg={Colors.dimText}>Disk:</span>
+                    <span fg={Colors.missing}>
+                      {formatDisplayValue(diskValue)}
+                    </span>
+                    <span fg={Colors.missing}>⚠ changed externally</span>
+                  </text>
+                  <text>
+                    <span fg={Colors.dimText}>Pending:</span>
+                    <span fg={Colors.pendingChange}>
+                      {formatDisplayValue(selectedPending.newValue)}
+                    </span>
+                  </text>
+                </>
+              ) :
+              (
+                <>
+                  <text>
+                    <span fg={Colors.dimText}>Old:</span>
+                    <span fg={Colors.secondaryText}>
+                      {formatDisplayValue(selectedPending.oldValue)}
+                    </span>
+                  </text>
+                  <text>
+                    <span fg={Colors.dimText}>New:</span>
+                    <span fg={Colors.pendingChange}>
+                      {formatDisplayValue(selectedPending.newValue)}
+                    </span>
+                    {selectedPending.newValue === null && <span fg={Colors.missing}>(deleted)</span>}
+                  </text>
+                </>
+              )}
+          </box>
+        ) :
+        (
+          <text>
+            <span fg={Colors.dimText}>Value:</span>
+            <span fg={selectedValue === null ? Colors.missing : Colors.primaryText}>
+              {formatDisplayValue(selectedValue)}
+            </span>
+          </text>
+        )}
     </box>
   );
 }

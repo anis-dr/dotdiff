@@ -5,15 +5,7 @@
  * Derived atoms compute values from the base atoms.
  */
 import { Atom } from "@effect-atom/atom-react";
-import type {
-  Clipboard,
-  DiffRow,
-  EditMode,
-  EnvFile,
-  ModalState,
-  PendingChange,
-  SearchState,
-} from "../types.js";
+import type { Clipboard, DiffRow, EditMode, EnvFile, ModalState, PendingChange, SearchState } from "../types.js";
 import { getVariableStatus } from "../types.js";
 
 // =============================================================================
@@ -21,8 +13,7 @@ import { getVariableStatus } from "../types.js";
 // =============================================================================
 
 /** Create a unique key for a pending change */
-export const pendingKey = (varKey: string, fileIndex: number): string =>
-  `${varKey}:${fileIndex}`;
+export const pendingKey = (varKey: string, fileIndex: number): string => `${varKey}:${fileIndex}`;
 
 // =============================================================================
 // Base Atoms - Split by concern for granular re-renders
@@ -38,7 +29,7 @@ export const pendingAtom = Atom.make<ReadonlyMap<string, PendingChange>>(new Map
 export const conflictsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive);
 
 /** Selection state */
-export const selectionAtom = Atom.make<{ readonly row: number; readonly col: number }>({
+export const selectionAtom = Atom.make<{ readonly row: number; readonly col: number; }>({
   row: 0,
   col: 0,
 }).pipe(Atom.keepAlive);
@@ -117,16 +108,16 @@ export const initialAppState: AppState = {
  * For writing, use the individual atoms directly.
  */
 export const appStateAtom = Atom.make((get): AppState => ({
-    files: get(filesAtom),
-    pending: get(pendingAtom),
-    conflicts: get(conflictsAtom),
-    selection: get(selectionAtom),
-    editMode: get(editModeAtom),
-    clipboard: get(clipboardAtom),
-    search: get(searchAtom),
-    modal: get(modalAtom),
-    message: get(messageAtom),
-    colWidths: get(colWidthsAtom),
+  files: get(filesAtom),
+  pending: get(pendingAtom),
+  conflicts: get(conflictsAtom),
+  selection: get(selectionAtom),
+  editMode: get(editModeAtom),
+  clipboard: get(clipboardAtom),
+  search: get(searchAtom),
+  modal: get(modalAtom),
+  message: get(messageAtom),
+  colWidths: get(colWidthsAtom),
 }));
 
 // =============================================================================
@@ -159,10 +150,10 @@ export const effectiveDiffRowsAtom = Atom.make((get): ReadonlyArray<DiffRow> => 
   }
 
   // Build rows with effective values (original + pending overlay)
-  const rows: DiffRow[] = [];
+  const rows: Array<DiffRow> = [];
 
   for (const key of allKeys) {
-    const values: (string | null)[] = [];
+    const values: Array<string | null> = [];
 
     for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
       const file = files[fileIndex]!;
@@ -214,8 +205,9 @@ export const statsAtom = Atom.make((get) => {
 /**
  * Pending changes as a flat array (for iteration, save preview, etc.)
  */
-export const pendingListAtom = Atom.map(pendingAtom, (pending): ReadonlyArray<PendingChange> =>
-  Array.from(pending.values())
+export const pendingListAtom = Atom.map(
+  pendingAtom,
+  (pending): ReadonlyArray<PendingChange> => Array.from(pending.values()),
 );
 
 /**

@@ -36,24 +36,22 @@ const keybindings = [
   { key: "?", action: "This help" },
 ];
 
-export function HelpOverlay({ onClose }: HelpOverlayProps) {
+export function HelpOverlay({ onClose: _onClose }: HelpOverlayProps) {
   return (
     <Modal
       title="Keybindings"
       footer={
         <text>
-          <span fg={Colors.dimText}>Press </span>
+          <span fg={Colors.dimText}>Press</span>
           <span fg={Colors.selectedBg}>Esc</span>
-          <span fg={Colors.dimText}> or </span>
+          <span fg={Colors.dimText}>or</span>
           <span fg={Colors.selectedBg}>?</span>
-          <span fg={Colors.dimText}> to close</span>
+          <span fg={Colors.dimText}>to close</span>
         </text>
       }
     >
-      {keybindings.map(({ key, action }, i) =>
-        key === "" ? (
-          <box key={i} height={1} />
-        ) : (
+      {keybindings.map(({ action, key }, i) =>
+        key === "" ? <box key={i} height={1} /> : (
           <box key={i} flexDirection="row" width="100%">
             <box width={12}>
               <text>
@@ -69,4 +67,3 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     </Modal>
   );
 }
-

@@ -3,14 +3,10 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
-import type { SearchState } from "../types.js";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { searchAtom } from "../state/appState.js";
-import {
-  openSearchOp,
-  closeSearchOp,
-  setSearchQueryOp,
-} from "../state/atomicOps.js";
+import { closeSearchOp, openSearchOp, setSearchQueryOp } from "../state/atomicOps.js";
+import type { SearchState } from "../types.js";
 
 export interface UseSearch {
   search: SearchState;

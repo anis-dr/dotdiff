@@ -3,11 +3,11 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import type { EnvFile } from "../types.js";
-import { filesAtom, fileCountAtom } from "../state/appState.js";
+import { fileCountAtom, filesAtom } from "../state/appState.js";
 import { setFilesOp, updateFileFromDiskOp } from "../state/atomicOps.js";
+import type { EnvFile } from "../types.js";
 
 export interface UseFiles {
   files: ReadonlyArray<EnvFile>;
@@ -31,7 +31,7 @@ export function useFiles(): UseFiles {
     (fileIndex: number, newVariables: ReadonlyMap<string, string>) => {
       doUpdateFileFromDisk({ fileIndex, newVariables });
     },
-    [doUpdateFileFromDisk]
+    [doUpdateFileFromDisk],
   );
 
   // Pure read operation - no atomic op needed
@@ -41,7 +41,7 @@ export function useFiles(): UseFiles {
       if (!file) return null;
       return file.variables.get(varKey) ?? null;
     },
-    [files]
+    [files],
   );
 
   return {

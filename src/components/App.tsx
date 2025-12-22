@@ -1,11 +1,26 @@
 /**
  * App component - main TUI with unified state management
  */
-import { useCallback, useEffect, useMemo } from "react";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useTerminalDimensions } from "@opentui/react";
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
-import type { EnvFile } from "../types.js";
-import { Colors } from "../types.js";
+import { useCallback, useEffect, useMemo } from "react";
+import {
+  useClipboardActions,
+  useDeleteActions,
+  useEditActions,
+  useEditMode,
+  useFiles,
+  useFileWatcher,
+  useKeyBindings,
+  useLayout,
+  useMessage,
+  useModal,
+  usePendingChanges,
+  useSearch,
+  useSelection,
+  useSyncActions,
+  useUndoActions,
+} from "../hooks/index.js";
 import {
   currentRowAtom,
   effectiveDiffRowsAtom,
@@ -15,31 +30,16 @@ import {
   statsAtom,
 } from "../state/appState.js";
 import { saveChangesAtom } from "../state/runtime.js";
-import {
-  useSelection,
-  useSearch,
-  useModal,
-  useEditMode,
-  useMessage,
-  useFiles,
-  useLayout,
-  usePendingChanges,
-  useKeyBindings,
-  useClipboardActions,
-  useSyncActions,
-  useEditActions,
-  useDeleteActions,
-  useUndoActions,
-  useFileWatcher,
-} from "../hooks/index.js";
-import { Header } from "./Header.js";
+import type { EnvFile } from "../types.js";
+import { Colors } from "../types.js";
 import { EnvRow } from "./EnvRow.js";
 import { Footer } from "./Footer.js";
+import { Header } from "./Header.js";
 import { HelpOverlay } from "./HelpOverlay.js";
+import { Inspector } from "./Inspector.js";
 import { QuitConfirmModal } from "./QuitConfirmModal.js";
 import { SavePreviewModal } from "./SavePreviewModal.js";
 import { SearchOverlay } from "./SearchOverlay.js";
-import { Inspector } from "./Inspector.js";
 
 interface AppProps {
   readonly initialFiles: ReadonlyArray<EnvFile>;
@@ -58,10 +58,11 @@ export function App({ initialFiles, onQuit }: AppProps) {
   const rowCount = useAtomValue(rowCountAtom);
 
   // Focused hooks
-  const { files, fileCount, setFiles } = useFiles();
-  const { selection, moveUp, moveDown, moveLeft, moveRight, cycleColumn, nextMatch, prevMatch, nextDiff, prevDiff } = useSelection();
-  const { search, openSearch, closeSearch, setSearchQuery } = useSearch();
-  const { modal, openModal, closeModal } = useModal();
+  const { fileCount, files, setFiles } = useFiles();
+  const { cycleColumn, moveDown, moveLeft, moveRight, moveUp, nextDiff, nextMatch, prevDiff, prevMatch } =
+    useSelection();
+  const { closeSearch, openSearch, search, setSearchQuery } = useSearch();
+  const { closeModal, modal, openModal } = useModal();
   const { editMode, enterAddMode } = useEditMode();
   const { showMessage } = useMessage();
   const { setColWidths } = useLayout();
@@ -75,9 +76,9 @@ export function App({ initialFiles, onQuit }: AppProps) {
 
   // Action hooks
   const { handleCopy, handlePaste, handlePasteAll } = useClipboardActions();
-  const { handleSyncToRight, handleSyncToLeft } = useSyncActions();
-  const { handleEnterEditMode, handleEditInput, handleSaveEdit, handleCancelEdit } = useEditActions();
-  const { handleDeleteVariable, handleDeleteAll } = useDeleteActions();
+  const { handleSyncToLeft, handleSyncToRight } = useSyncActions();
+  const { handleCancelEdit, handleEditInput, handleEnterEditMode, handleSaveEdit } = useEditActions();
+  const { handleDeleteAll, handleDeleteVariable } = useDeleteActions();
   const { handleRevert, handleUndo, handleUndoAll } = useUndoActions();
 
   // Initialize files on mount
@@ -92,16 +93,14 @@ export function App({ initialFiles, onQuit }: AppProps) {
     const keyColWidth = Math.max(20, Math.floor(available * 0.35));
     const valueWidth = Math.max(
       15,
-      Math.floor((available - keyColWidth) / Math.max(1, fileCount))
+      Math.floor((available - keyColWidth) / Math.max(1, fileCount)),
     );
     const used = keyColWidth + valueWidth * fileCount;
     const remainder = Math.max(0, available - used);
 
     return [
       keyColWidth,
-      ...Array.from({ length: fileCount }, (_, i) =>
-        i === fileCount - 1 ? valueWidth + remainder : valueWidth
-      ),
+      ...Array.from({ length: fileCount }, (_, i) => i === fileCount - 1 ? valueWidth + remainder : valueWidth),
     ];
   }, [terminalWidth, fileCount]);
 
@@ -149,7 +148,7 @@ export function App({ initialFiles, onQuit }: AppProps) {
   // Search handlers
   const handleSearchInput = useCallback(
     (value: string) => setSearchQuery(value),
-    [setSearchQuery]
+    [setSearchQuery],
   );
 
   const handleSearchSubmit = useCallback(() => {
@@ -214,20 +213,20 @@ export function App({ initialFiles, onQuit }: AppProps) {
           <b>
             <span fg={Colors.selectedBg}>envy</span>
           </b>
-          <span fg={Colors.dimText}> │ {fileCount} files</span>
+          <span fg={Colors.dimText}>│ {fileCount} files</span>
           {search.active && search.query && (
             <>
-              <span fg={Colors.dimText}> │ </span>
+              <span fg={Colors.dimText}>│</span>
               <span fg={Colors.selectedBg}>/{search.query}</span>
-              <span fg={Colors.dimText}> ({filteredRowIndices.length})</span>
+              <span fg={Colors.dimText}>({filteredRowIndices.length})</span>
             </>
           )}
         </text>
         <text>
           <span fg={Colors.identical}>● {stats.identical}</span>
-          <span fg={Colors.dimText}> </span>
+          <span fg={Colors.dimText}></span>
           <span fg={Colors.different}>◐ {stats.different}</span>
-          <span fg={Colors.dimText}> </span>
+          <span fg={Colors.dimText}></span>
           <span fg={Colors.missing}>○ {stats.missing}</span>
         </text>
       </box>

@@ -14,7 +14,7 @@ export class FileReadError extends Schema.TaggedError<FileReadError>()(
   {
     path: Schema.String,
     cause: Schema.Defect,
-  }
+  },
 ) {}
 
 /**
@@ -25,7 +25,7 @@ export class FileWriteError extends Schema.TaggedError<FileWriteError>()(
   {
     path: Schema.String,
     cause: Schema.Defect,
-  }
+  },
 ) {}
 
 /**
@@ -37,7 +37,7 @@ export class EnvParseError extends Schema.TaggedError<EnvParseError>()(
     path: Schema.String,
     line: Schema.optional(Schema.Number),
     cause: Schema.optional(Schema.Defect),
-  }
+  },
 ) {}
 
 /**
@@ -48,7 +48,7 @@ export class FileWatchError extends Schema.TaggedError<FileWatchError>()(
   {
     paths: Schema.Array(Schema.String),
     cause: Schema.Defect,
-  }
+  },
 ) {}
 
 /**

@@ -13,4 +13,3 @@ export const SAVE_PREVIEW_MAX_ITEMS = 3;
 
 /** Maximum length for clipboard display in footer */
 export const TRUNCATE_CLIPBOARD = 30;
-

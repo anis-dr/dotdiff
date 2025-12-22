@@ -2,11 +2,11 @@
  * ValueCell component - displays a single value cell in the diff view
  * Extracted from EnvRow to reduce JSX nesting
  */
-import type { RefObject } from "react";
 import type { InputRenderable } from "@opentui/core";
+import type { RefObject } from "react";
 import type { EditMode } from "../types.js";
 import { Colors } from "../types.js";
-import { truncate, formatDisplayValue } from "../utils/index.js";
+import { formatDisplayValue, truncate } from "../utils/index.js";
 
 interface ValueCellProps {
   readonly value: string | null;
@@ -21,23 +21,23 @@ interface ValueCellProps {
   readonly inputRef: RefObject<InputRenderable | null>;
   readonly onEditInput: (value: string) => void;
   readonly onEditSubmit: (value?: string) => void;
-  readonly onPaste: (e: { text: string }) => void;
+  readonly onPaste: (e: { text: string; }) => void;
 }
 
 export function ValueCell({
-  value,
-  fileIndex,
-  width,
-  isSelectedCell,
-  isEditing,
-  hasPending,
-  hasConflict,
-  pendingValue,
   editMode,
+  fileIndex,
+  hasConflict,
+  hasPending,
   inputRef,
+  isEditing,
+  isSelectedCell,
   onEditInput,
   onEditSubmit,
   onPaste,
+  pendingValue,
+  value,
+  width,
 }: ValueCellProps) {
   const maxLen = width - 2;
   const truncatedValue = truncate(formatDisplayValue(value), maxLen);
@@ -49,8 +49,8 @@ export function ValueCell({
   const backgroundColor = isSelectedCell
     ? Colors.selectedBg
     : hasPending
-      ? Colors.pendingChangeBg
-      : undefined;
+    ? Colors.pendingChangeBg
+    : undefined;
 
   return (
     <box key={fileIndex} width={width + 1} flexDirection="row">
@@ -62,26 +62,28 @@ export function ValueCell({
         paddingRight={1}
         {...(backgroundColor ? { backgroundColor } : {})}
       >
-        {isEditing && editMode ? (
-          <input
-            ref={inputRef}
-            focused
-            value={editMode.inputValue}
-            onInput={onEditInput}
-            onSubmit={onEditSubmit}
-            onPaste={onPaste}
-            style={{ width: width - 2 }}
-          />
-        ) : (
-          <ValueText
-            hasPending={hasPending}
-            hasConflict={hasConflict}
-            isSelectedCell={isSelectedCell}
-            truncatedPending={truncatedPending}
-            truncatedValue={truncatedValue}
-            value={value}
-          />
-        )}
+        {isEditing && editMode ?
+          (
+            <input
+              ref={inputRef}
+              focused
+              value={editMode.inputValue}
+              onInput={onEditInput}
+              onSubmit={onEditSubmit}
+              onPaste={onPaste}
+              style={{ width: width - 2 }}
+            />
+          ) :
+          (
+            <ValueText
+              hasPending={hasPending}
+              hasConflict={hasConflict}
+              isSelectedCell={isSelectedCell}
+              truncatedPending={truncatedPending}
+              truncatedValue={truncatedValue}
+              value={value}
+            />
+          )}
       </box>
     </box>
   );
@@ -98,8 +100,8 @@ interface ValueTextProps {
 }
 
 function ValueText({
-  hasPending,
   hasConflict,
+  hasPending,
   isSelectedCell,
   truncatedPending,
   truncatedValue,
@@ -109,15 +111,13 @@ function ValueText({
     const textColor = isSelectedCell
       ? Colors.selectedText
       : hasConflict
-        ? Colors.missing
-        : Colors.pendingChange;
+      ? Colors.missing
+      : Colors.pendingChange;
 
     return (
       <text>
         <span fg={textColor}>{truncatedPending}</span>
-        {hasConflict && (
-          <span fg={isSelectedCell ? Colors.selectedText : Colors.missing}> ⚠</span>
-        )}
+        {hasConflict && <span fg={isSelectedCell ? Colors.selectedText : Colors.missing}>⚠</span>}
       </text>
     );
   }
@@ -125,8 +125,8 @@ function ValueText({
   const textColor = isSelectedCell
     ? Colors.selectedText
     : value === null
-      ? Colors.missing
-      : Colors.secondaryText;
+    ? Colors.missing
+    : Colors.secondaryText;
 
   return (
     <text>
@@ -134,4 +134,3 @@ function ValueText({
     </text>
   );
 }
-

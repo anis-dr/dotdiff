@@ -1,11 +1,11 @@
 /**
  * Hook for undo-related actions
  */
-import { useCallback } from "react";
 import { useAtomValue } from "@effect-atom/atom-react";
+import { useCallback } from "react";
 import { currentRowAtom, pendingListAtom, selectionAtom } from "../state/appState.js";
-import { usePendingChanges } from "./usePendingChanges.js";
 import { useMessage } from "./useMessage.js";
+import { usePendingChanges } from "./usePendingChanges.js";
 
 export interface UseUndoActions {
   handleRevert: () => void;
@@ -18,7 +18,7 @@ export function useUndoActions(): UseUndoActions {
   const selection = useAtomValue(selectionAtom);
   const pendingList = useAtomValue(pendingListAtom);
 
-  const { removeChange, clearChanges, undoLast, findChange } = usePendingChanges();
+  const { clearChanges, findChange, removeChange, undoLast } = usePendingChanges();
   const { showMessage } = useMessage();
 
   const selectedCol = selection.col;
@@ -56,4 +56,3 @@ export function useUndoActions(): UseUndoActions {
     handleUndoAll,
   };
 }
-

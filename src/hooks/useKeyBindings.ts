@@ -40,7 +40,7 @@ export function useKeyBindings(
   editMode: EditMode | null,
   isSearchActive: boolean,
   modalState: ModalState | null,
-  actions: KeyBindingActions
+  actions: KeyBindingActions,
 ): void {
   useKeyboard((key) => {
     // Modal mode: handle y/n/escape
@@ -161,4 +161,3 @@ export function useKeyBindings(
     }
   });
 }
-

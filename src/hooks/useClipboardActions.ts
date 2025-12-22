@@ -1,14 +1,14 @@
 /**
  * Hook for clipboard-related actions (copy, paste, paste all)
  */
-import { useCallback } from "react";
 import { useAtomValue } from "@effect-atom/atom-react";
-import type { DiffRow, PendingChange } from "../types.js";
+import { useCallback } from "react";
 import { currentRowAtom, fileCountAtom, selectionAtom } from "../state/appState.js";
+import type { PendingChange } from "../types.js";
 import { useClipboard } from "./useClipboard.js";
-import { usePendingChanges } from "./usePendingChanges.js";
 import { useFiles } from "./useFiles.js";
 import { useMessage } from "./useMessage.js";
+import { usePendingChanges } from "./usePendingChanges.js";
 
 export interface UseClipboardActions {
   handleCopy: () => void;
@@ -22,7 +22,7 @@ export function useClipboardActions(): UseClipboardActions {
   const fileCount = useAtomValue(fileCountAtom);
 
   const { clipboard, setClipboard } = useClipboard();
-  const { upsertChange, addChanges } = usePendingChanges();
+  const { addChanges, upsertChange } = usePendingChanges();
   const { getOriginalValue } = useFiles();
   const { showMessage } = useMessage();
 
@@ -63,7 +63,7 @@ export function useClipboardActions(): UseClipboardActions {
       showMessage("⚠ Clipboard empty");
       return;
     }
-    const changes: PendingChange[] = [];
+    const changes: Array<PendingChange> = [];
     for (let i = 0; i < fileCount; i++) {
       const originalValue = getOriginalValue(currentRow.key, i);
       if (clipboard.value !== originalValue) {
@@ -89,4 +89,3 @@ export function useClipboardActions(): UseClipboardActions {
     handlePasteAll,
   };
 }
-

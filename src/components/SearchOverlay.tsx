@@ -1,8 +1,8 @@
 /**
  * SearchOverlay component - inline search input
  */
-import { useRef, useCallback } from "react";
 import type { InputRenderable } from "@opentui/core";
+import { useCallback, useRef } from "react";
 import { Colors } from "../types.js";
 
 interface SearchOverlayProps {
@@ -15,16 +15,16 @@ interface SearchOverlayProps {
 }
 
 export function SearchOverlay({
-  query,
   matchCount,
-  totalCount,
+  onCancel: _onCancel,
   onInput,
   onSubmit,
-  onCancel,
+  query,
+  totalCount,
 }: SearchOverlayProps) {
   const inputRef = useRef<InputRenderable>(null);
 
-  const handlePaste = useCallback((e: { text: string }) => {
+  const handlePaste = useCallback((e: { text: string; }) => {
     inputRef.current?.insertText(e.text);
   }, []);
 
@@ -60,4 +60,3 @@ export function SearchOverlay({
     </box>
   );
 }
-

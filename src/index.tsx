@@ -5,13 +5,12 @@
  * Uses Effect.acquireRelease for proper renderer lifecycle management
  * and PubSub for bridging file watcher events to React.
  */
+import { Registry, RegistryContext } from "@effect-atom/atom-react";
 import { Args, Command, HelpDoc, Span, ValidationError } from "@effect/cli";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Console, Deferred, Effect, Layer, Stream } from "effect";
-import { RegistryContext, Registry } from "@effect-atom/atom-react";
-import React from "react";
 import { App } from "./components/index.js";
 import {
   EnvDiffer,
@@ -28,12 +27,11 @@ import type { EnvFile } from "./types.js";
 // CLI arguments: at least 2 .env file paths
 const filesArg = Args.path({ name: "files", exists: "yes" }).pipe(
   Args.atLeast(2),
-  Args.withDescription("Paths to .env files to compare (minimum 2)")
+  Args.withDescription("Paths to .env files to compare (minimum 2)"),
 );
 
 // Terminal escape sequences to restore normal terminal state
-const TERMINAL_RESTORE =
-  "\x1b[?1000l" + // Disable mouse click tracking
+const TERMINAL_RESTORE = "\x1b[?1000l" + // Disable mouse click tracking
   "\x1b[?1002l" + // Disable mouse button tracking
   "\x1b[?1003l" + // Disable all mouse tracking
   "\x1b[?1006l" + // Disable SGR mouse mode
@@ -77,7 +75,7 @@ const RendererResource = Effect.acquireRelease(
       } catch {
         /* ignore */
       }
-    })
+    }),
 );
 
 /**
@@ -87,10 +85,10 @@ const RendererResource = Effect.acquireRelease(
 const renderApp = (
   envFiles: ReadonlyArray<EnvFile>,
   shutdownSignal: Deferred.Deferred<void>,
-  registry: Registry.Registry
+  registry: Registry.Registry,
 ) =>
   Effect.scoped(
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const renderer = yield* RendererResource;
 
       // Register process signal handlers for clean shutdown
@@ -102,11 +100,13 @@ const renderApp = (
       };
       const handleUncaughtException = (err: Error) => {
         Effect.runSync(restoreTerminal);
+        // eslint-disable-next-line no-console
         console.error("Uncaught exception:", err);
         process.exit(1);
       };
       const handleUnhandledRejection = (err: unknown) => {
         Effect.runSync(restoreTerminal);
+        // eslint-disable-next-line no-console
         console.error("Unhandled rejection:", err);
         process.exit(1);
       };
@@ -124,7 +124,7 @@ const renderApp = (
           process.removeListener("uncaughtException", handleUncaughtException);
           process.removeListener(
             "unhandledRejection",
-            handleUnhandledRejection
+            handleUnhandledRejection,
           );
         })
       );
@@ -138,12 +138,12 @@ const renderApp = (
               Effect.runSync(Deferred.succeed(shutdownSignal, undefined));
             }}
           />
-        </RegistryContext.Provider>
+        </RegistryContext.Provider>,
       );
 
       // Wait for shutdown signal
       yield* Deferred.await(shutdownSignal);
-    })
+    }),
   );
 
 /**
@@ -152,9 +152,9 @@ const renderApp = (
  */
 const startFileWatcher = (
   filePaths: ReadonlyArray<string>,
-  registry: Registry.Registry
+  registry: Registry.Registry,
 ) =>
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     const watcher = yield* FileWatcher;
     const watchStream = watcher.watchFiles(filePaths);
 
@@ -162,17 +162,14 @@ const startFileWatcher = (
     yield* Stream.runForEach(watchStream, (event) =>
       Effect.sync(() => {
         registry.set(fileChangeEventAtom, event);
-      })
-    ).pipe(
-      Effect.catchAll((error) =>
-        Console.error(`File watcher error: ${String(error)}`)
-      )
-    );
+      })).pipe(
+        Effect.catchAll((error) => Console.error(`File watcher error: ${String(error)}`)),
+      );
   });
 
 // Main command
 const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     const parser = yield* EnvParser;
     const differ = yield* EnvDiffer;
 
@@ -196,10 +193,9 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
 
     // Render the TUI and wait for quit
     yield* renderApp(envFiles, shutdownSignal, registry);
-  })
-).pipe(
-  Command.withDescription("Compare and sync environment files side-by-side")
-);
+  })).pipe(
+    Command.withDescription("Compare and sync environment files side-by-side"),
+  );
 
 // Build the CLI
 const cli = Command.run(envy, {
@@ -212,7 +208,7 @@ const cli = Command.run(envy, {
     HelpDoc.p("$ envy .env.dev .env.staging .env.prod"),
     HelpDoc.h2("Keybindings"),
     HelpDoc.p(
-      "↑↓/jk Navigate | ←→/hl Column | c Copy | v Paste | s Save | q Quit"
+      "↑↓/jk Navigate | ←→/hl Column | c Copy | v Paste | s Save | q Quit",
     ),
   ]),
 });
@@ -222,7 +218,7 @@ const ServicesLive = Layer.mergeAll(
   EnvParserLive,
   EnvDifferLive,
   EnvWriterLive,
-  FileWatcherLive
+  FileWatcherLive,
 );
 
 const MainLive = ServicesLive.pipe(Layer.provideMerge(BunContext.layer));
@@ -232,12 +228,11 @@ const program = cli(process.argv).pipe(
   Effect.scoped,
   Effect.provide(MainLive),
   Effect.catchIf(ValidationError.isValidationError, () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       yield* Console.error("\nUsage: envy <file1> <file2> [file3...]");
       yield* Console.error("Run 'envy --help' for more information.");
       process.exit(1);
-    })
-  )
+    })),
 );
 
 BunRuntime.runMain(program);

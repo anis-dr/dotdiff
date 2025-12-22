@@ -9,7 +9,7 @@ interface ModalProps {
   readonly footer?: React.ReactNode;
 }
 
-export function Modal({ title, children, footer }: ModalProps) {
+export function Modal({ children, footer, title }: ModalProps) {
   return (
     <box
       position="absolute"
@@ -57,4 +57,3 @@ export function Modal({ title, children, footer }: ModalProps) {
     </box>
   );
 }
-

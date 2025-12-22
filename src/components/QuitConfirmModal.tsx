@@ -11,9 +11,9 @@ interface QuitConfirmModalProps {
 }
 
 export function QuitConfirmModal({
+  onCancel: _onCancel,
+  onConfirm: _onConfirm,
   pendingCount,
-  onConfirm,
-  onCancel,
 }: QuitConfirmModalProps) {
   return (
     <Modal
@@ -21,9 +21,9 @@ export function QuitConfirmModal({
       footer={
         <text>
           <span fg={Colors.missing}>y</span>
-          <span fg={Colors.dimText}> quit without saving  </span>
+          <span fg={Colors.dimText}>quit without saving</span>
           <span fg={Colors.identical}>n</span>
-          <span fg={Colors.dimText}> cancel</span>
+          <span fg={Colors.dimText}>cancel</span>
         </text>
       }
     >
@@ -39,4 +39,3 @@ export function QuitConfirmModal({
     </Modal>
   );
 }
-

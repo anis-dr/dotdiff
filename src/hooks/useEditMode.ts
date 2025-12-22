@@ -3,15 +3,10 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
-import type { EditMode } from "../types.js";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { editModeAtom } from "../state/appState.js";
-import {
-  enterEditModeOp,
-  enterAddModeOp,
-  updateEditInputOp,
-  exitEditModeOp,
-} from "../state/atomicOps.js";
+import { enterAddModeOp, enterEditModeOp, exitEditModeOp, updateEditInputOp } from "../state/atomicOps.js";
+import type { EditMode } from "../types.js";
 
 export interface UseEditMode {
   editMode: EditMode | null;

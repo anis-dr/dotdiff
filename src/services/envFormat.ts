@@ -19,7 +19,7 @@ export interface EnvLine {
  * Parse an .env file content into line records
  * Preserves the original raw content for each line
  */
-export function parseEnvLines(content: string): EnvLine[] {
+export function parseEnvLines(content: string): Array<EnvLine> {
   const lines = content.split("\n");
   // If file ends with a newline, split() creates a trailing empty element.
   // That element is not an actual \"blank line\"; it just represents the final line ending.
@@ -27,7 +27,7 @@ export function parseEnvLines(content: string): EnvLine[] {
   if (content.endsWith("\n")) {
     lines.pop();
   }
-  const result: EnvLine[] = [];
+  const result: Array<EnvLine> = [];
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]!;
@@ -69,8 +69,8 @@ export function parseEnvLines(content: string): EnvLine[] {
  * Handles: KEY=VALUE, KEY="VALUE", KEY='VALUE', export KEY=VALUE
  */
 function parseAssignment(
-  line: string
-): { key: string; value: string } | null {
+  line: string,
+): { key: string; value: string; } | null {
   let trimmed = line.trim();
 
   // Handle 'export' prefix
@@ -94,7 +94,7 @@ function parseAssignment(
   // Handle quoted values
   const trimmedValue = value.trim();
   if (
-    (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
+    (trimmedValue.startsWith("\"") && trimmedValue.endsWith("\"")) ||
     (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))
   ) {
     value = trimmedValue.slice(1, -1);
@@ -118,7 +118,7 @@ export function buildAssignmentLine(key: string, value: string): string {
   // Quote values that contain spaces, #, quotes, or special characters
   const needsQuotes = /[\s#"'\\]/.test(value) || value === "";
   if (needsQuotes) {
-    const escapedValue = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const escapedValue = value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
     return `${key}="${escapedValue}"`;
   }
   return `${key}=${value}`;
@@ -138,11 +138,11 @@ export function buildAssignmentLine(key: string, value: string): string {
  * @returns New file content as a string
  */
 export function applyEnvChanges(
-  lines: EnvLine[],
+  lines: Array<EnvLine>,
   changes: Map<string, string | null>,
-  additions: Map<string, string>
+  additions: Map<string, string>,
 ): string {
-  const resultLines: string[] = [];
+  const resultLines: Array<string> = [];
   const handledKeys = new Set<string>();
 
   for (const line of lines) {
@@ -172,7 +172,7 @@ export function applyEnvChanges(
   while (insertAt > 0 && resultLines[insertAt - 1]!.trim() === "") {
     insertAt--;
   }
-  const additionLines: string[] = [];
+  const additionLines: Array<string> = [];
   for (const [key, value] of additions) {
     if (!handledKeys.has(key)) {
       additionLines.push(buildAssignmentLine(key, value));
@@ -197,7 +197,7 @@ export function applyEnvChanges(
 export function patchEnvContent(
   originalContent: string,
   changes: Map<string, string | null>,
-  additions: Map<string, string> = new Map()
+  additions: Map<string, string> = new Map(),
 ): string {
   const lines = parseEnvLines(originalContent);
   return applyEnvChanges(lines, changes, additions);
@@ -217,4 +217,3 @@ export function parseEnvToMap(content: string): Map<string, string> {
   }
   return variables;
 }
-

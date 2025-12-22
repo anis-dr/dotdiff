@@ -3,12 +3,12 @@
  * Layout: [Key] | [File A] | [File B]
  */
 import { useAtomValue } from "@effect-atom/atom-react";
-import { Colors } from "../types.js";
 import { appStateAtom } from "../state/appState.js";
+import { Colors } from "../types.js";
 
 export function Header() {
   const state = useAtomValue(appStateAtom);
-  const { files, selection, colWidths } = state;
+  const { colWidths, files, selection } = state;
   const selectedCol = selection.col;
 
   const keyColWidth = colWidths[0] ?? 20;

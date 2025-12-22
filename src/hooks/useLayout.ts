@@ -3,7 +3,7 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { colWidthsAtom } from "../state/appState.js";
 import { setColWidthsOp } from "../state/atomicOps.js";
 

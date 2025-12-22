@@ -3,23 +3,18 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import type { PendingChange } from "../types.js";
+import { conflictsAtom, pendingAtom, pendingKey, pendingListAtom } from "../state/appState.js";
 import {
-  pendingAtom,
-  conflictsAtom,
-  pendingKey,
-  pendingListAtom,
-} from "../state/appState.js";
-import {
-  upsertChangeOp,
+  addChangesOp,
+  clearChangesOp,
   removeChangeOp,
   removeChangesForKeyOp,
-  clearChangesOp,
   undoLastOp,
-  addChangesOp,
+  upsertChangeOp,
 } from "../state/atomicOps.js";
+import type { PendingChange } from "../types.js";
 
 export interface UsePendingChanges {
   pending: ReadonlyMap<string, PendingChange>;
@@ -53,7 +48,7 @@ export function usePendingChanges(): UsePendingChanges {
     (varKey: string, fileIndex: number) => {
       doRemoveChange({ varKey, fileIndex });
     },
-    [doRemoveChange]
+    [doRemoveChange],
   );
 
   // Wrapper for removeChangesForKey to match expected signature
@@ -61,11 +56,11 @@ export function usePendingChanges(): UsePendingChanges {
     (varKey: string, excludeFileIndex?: number) => {
       if (excludeFileIndex !== undefined) {
         doRemoveChangesForKey({ varKey, excludeFileIndex });
-          } else {
+      } else {
         doRemoveChangesForKey({ varKey });
-          }
+      }
     },
-    [doRemoveChangesForKey]
+    [doRemoveChangesForKey],
   );
 
   // Check size first, then execute to avoid race condition
@@ -81,7 +76,7 @@ export function usePendingChanges(): UsePendingChanges {
       const key = pendingKey(varKey, fileIndex);
       return pending.get(key);
     },
-    [pending]
+    [pending],
   );
 
   return {

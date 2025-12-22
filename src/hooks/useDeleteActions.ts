@@ -1,13 +1,13 @@
 /**
  * Hook for delete-related actions
  */
-import { useCallback } from "react";
 import { useAtomValue } from "@effect-atom/atom-react";
-import type { PendingChange } from "../types.js";
+import { useCallback } from "react";
 import { currentRowAtom, fileCountAtom, pendingListAtom, selectionAtom } from "../state/appState.js";
-import { usePendingChanges } from "./usePendingChanges.js";
+import type { PendingChange } from "../types.js";
 import { useFiles } from "./useFiles.js";
 import { useMessage } from "./useMessage.js";
+import { usePendingChanges } from "./usePendingChanges.js";
 
 export interface UseDeleteActions {
   handleDeleteVariable: () => void;
@@ -20,7 +20,7 @@ export function useDeleteActions(): UseDeleteActions {
   const fileCount = useAtomValue(fileCountAtom);
   const pendingList = useAtomValue(pendingListAtom);
 
-  const { upsertChange, removeChange, removeChangesForKey, findChange, addChanges } = usePendingChanges();
+  const { addChanges, findChange, removeChange, removeChangesForKey, upsertChange } = usePendingChanges();
   const { getOriginalValue } = useFiles();
   const { showMessage } = useMessage();
 
@@ -56,7 +56,7 @@ export function useDeleteActions(): UseDeleteActions {
   const handleDeleteAll = useCallback(() => {
     if (!currentRow) return;
 
-    const newChanges: PendingChange[] = [];
+    const newChanges: Array<PendingChange> = [];
     for (let i = 0; i < fileCount; i++) {
       const originalValue = getOriginalValue(currentRow.key, i);
       if (originalValue !== null) {
@@ -90,4 +90,3 @@ export function useDeleteActions(): UseDeleteActions {
     handleDeleteAll,
   };
 }
-

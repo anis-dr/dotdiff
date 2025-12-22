@@ -4,9 +4,10 @@
  * Uses Effect Platform's FileSystem.watch with debouncing to detect
  * when files are modified externally.
  */
-import { Context, Effect, Layer, PubSub, Stream, pipe } from "effect";
 import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
+import type { PubSub, PubSub } from "effect";
+import { Context, Effect, Layer, pipe, Stream } from "effect";
 import { FILE_WATCHER_DEBOUNCE_MS } from "../constants.js";
 
 /** Event emitted when a watched file changes */
@@ -32,18 +33,18 @@ export class FileWatcher extends Context.Tag("@envy/FileWatcher")<
      * The stream emits after changes settle (debounce interval from constants).
      */
     readonly watchFiles: (
-      paths: ReadonlyArray<string>
+      paths: ReadonlyArray<string>,
     ) => Stream.Stream<FileChangeEvent, PlatformError>;
   }
 >() {}
 
 export const FileWatcherLive = Layer.effect(
   FileWatcher,
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem;
 
     const watchFiles = (
-      paths: ReadonlyArray<string>
+      paths: ReadonlyArray<string>,
     ): Stream.Stream<FileChangeEvent, PlatformError> => {
       if (paths.length === 0) {
         return Stream.empty;
@@ -63,17 +64,17 @@ export const FileWatcherLive = Layer.effect(
                 // Treat create as update (file recreated)
                 return { path: event.path, type: "update" };
             }
-          })
+          }),
         )
       );
 
       // Merge all file streams and debounce
       return pipe(
         Stream.mergeAll(fileStreams, { concurrency: paths.length }),
-        Stream.debounce(`${FILE_WATCHER_DEBOUNCE_MS} millis`)
+        Stream.debounce(`${FILE_WATCHER_DEBOUNCE_MS} millis`),
       );
     };
 
     return { watchFiles };
-  })
+  }),
 );

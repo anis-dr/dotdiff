@@ -3,24 +3,24 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback } from "react";
 import { selectionAtom } from "../state/appState.js";
 import {
-  setSelectionOp,
-  moveUpOp,
+  cycleColumnOp,
   moveDownOp,
   moveLeftOp,
   moveRightOp,
-  cycleColumnOp,
-  nextMatchOp,
-  prevMatchOp,
+  moveUpOp,
   nextDiffOp,
+  nextMatchOp,
   prevDiffOp,
+  prevMatchOp,
+  setSelectionOp,
 } from "../state/atomicOps.js";
 
 export interface UseSelection {
-  selection: { readonly row: number; readonly col: number };
+  selection: { readonly row: number; readonly col: number; };
   moveUp: () => void;
   moveDown: () => void;
   moveLeft: () => void;
@@ -54,7 +54,7 @@ export function useSelection(): UseSelection {
     (row: number, col: number) => {
       doSetSelection({ row, col });
     },
-    [doSetSelection]
+    [doSetSelection],
   );
 
   return {

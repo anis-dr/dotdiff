@@ -1,12 +1,12 @@
 /**
  * Hook for sync actions (sync left/right for 2-file mode)
  */
-import { useCallback } from "react";
 import { useAtomValue } from "@effect-atom/atom-react";
+import { useCallback } from "react";
 import { currentRowAtom, fileCountAtom } from "../state/appState.js";
-import { usePendingChanges } from "./usePendingChanges.js";
 import { useFiles } from "./useFiles.js";
 import { useMessage } from "./useMessage.js";
+import { usePendingChanges } from "./usePendingChanges.js";
 
 export interface UseSyncActions {
   handleSyncToRight: () => void;
@@ -68,4 +68,3 @@ export function useSyncActions(): UseSyncActions {
     handleSyncToLeft,
   };
 }
-

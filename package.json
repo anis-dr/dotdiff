@@ -7,12 +7,24 @@
     "prepare": "effect-language-service patch",
     "dev": "bun run src/index.tsx",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix"
   },
   "devDependencies": {
+    "@effect/eslint-plugin": "^0.3.2",
     "@effect/language-service": "^0.62.4",
+    "@eslint/compat": "^2.0.0",
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^9.39.2",
     "@types/bun": "latest",
-    "@types/react": "^19"
+    "@types/react": "^19",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
+    "@typescript-eslint/parser": "^8.50.1",
+    "eslint": "^9.39.2",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-sort-destructure-keys": "^2.0.0"
   },
   "peerDependencies": {
     "typescript": "^5"

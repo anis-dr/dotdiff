@@ -2,20 +2,20 @@
  * EnvRow component - displays a single variable row with status and inline editing
  * Layout: [Key/Status column] | [File A value] | [File B value]
  */
-import { useCallback, useRef } from "react";
 import { useAtomValue } from "@effect-atom/atom-react";
 import type { InputRenderable } from "@opentui/core";
+import { useCallback, useRef } from "react";
+import {
+  colWidthsAtom,
+  conflictsAtom,
+  editModeAtom,
+  pendingAtom,
+  pendingKey,
+  selectionAtom,
+} from "../state/appState.js";
 import type { DiffRow, VariableStatus } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";
 import { truncate } from "../utils/index.js";
-import {
-  selectionAtom,
-  pendingAtom,
-  conflictsAtom,
-  colWidthsAtom,
-  editModeAtom,
-  pendingKey,
-} from "../state/appState.js";
 import { ValueCell } from "./ValueCell.js";
 
 interface EnvRowProps {
@@ -38,10 +38,10 @@ const statusColor: Record<VariableStatus, string> = {
 };
 
 export function EnvRow({
-  row,
-  rowIndex,
   onEditInput,
   onEditSubmit,
+  row,
+  rowIndex,
 }: EnvRowProps) {
   // Use focused atoms for granular re-renders
   const selection = useAtomValue(selectionAtom);
@@ -62,7 +62,7 @@ export function EnvRow({
   const isEditingKey = editMode?.phase === "addKey" && isSelectedRow;
 
   // Find pending changes for this row
-  const pendingByFile = new Map<number, { oldValue: string | null; newValue: string | null }>();
+  const pendingByFile = new Map<number, { oldValue: string | null; newValue: string | null; }>();
   for (let i = 0; i < row.values.length; i++) {
     const pKey = pendingKey(row.key, i);
     const change = pending.get(pKey);
@@ -83,11 +83,9 @@ export function EnvRow({
   const hasAnyPending = pendingByFile.size > 0;
 
   // Check for conflicts
-  const hasAnyConflict = Array.from(pendingByFile.keys()).some((i) =>
-    conflicts.has(pendingKey(row.key, i))
-  );
+  const hasAnyConflict = Array.from(pendingByFile.keys()).some((i) => conflicts.has(pendingKey(row.key, i)));
 
-  const handlePaste = useCallback((e: { text: string }) => {
+  const handlePaste = useCallback((e: { text: string; }) => {
     inputRef.current?.insertText(e.text);
   }, []);
 
@@ -109,50 +107,52 @@ export function EnvRow({
           paddingRight={1}
           backgroundColor={isSelectedRow ? Colors.selectedRowBg : Colors.background}
         >
-          {isEditingKey && editMode ? (
-            <box flexDirection="row">
+          {isEditingKey && editMode ?
+            (
+              <box flexDirection="row">
+                <text>
+                  <span fg={Colors.selectedText}>{icon}</span>
+                </text>
+                <input
+                  ref={inputRef}
+                  focused
+                  value={editMode.inputValue}
+                  onInput={onEditInput}
+                  onSubmit={onEditSubmit}
+                  onPaste={handlePaste}
+                  style={{ width: keyColWidth - 4 }}
+                />
+              </box>
+            ) :
+            (
               <text>
-                <span fg={Colors.selectedText}>{icon} </span>
-              </text>
-              <input
-                ref={inputRef}
-                focused
-                value={editMode.inputValue}
-                onInput={onEditInput}
-                onSubmit={onEditSubmit}
-                onPaste={handlePaste}
-                style={{ width: keyColWidth - 4 }}
-              />
-            </box>
-          ) : (
-            <text>
-              <span fg={color}>{icon} </span>
-              {isSelectedRow ? (
-                <b>
-                  <span fg={Colors.primaryText}>
-                    {truncate(row.key || "(new variable)", keyColWidth - 4)}
-                  </span>
-                </b>
-              ) : (
-                <span fg={Colors.primaryText}>
-                  {truncate(row.key || "(new variable)", keyColWidth - 4)}
-                </span>
-              )}
-              {hasAnyPending && !isEditingKey && (
-                <span
-                  fg={
-                    hasAnyConflict && isSelectedRow
+                <span fg={color}>{icon}</span>
+                {isSelectedRow ?
+                  (
+                    <b>
+                      <span fg={Colors.primaryText}>
+                        {truncate(row.key || "(new variable)", keyColWidth - 4)}
+                      </span>
+                    </b>
+                  ) :
+                  (
+                    <span fg={Colors.primaryText}>
+                      {truncate(row.key || "(new variable)", keyColWidth - 4)}
+                    </span>
+                  )}
+                {hasAnyPending && !isEditingKey && (
+                  <span
+                    fg={hasAnyConflict && isSelectedRow
                       ? Colors.primaryText
                       : hasAnyConflict
-                        ? Colors.missing
-                        : Colors.pendingChange
-                  }
-                >
-                  {hasAnyConflict ? " ⚠" : " ✎"}
-                </span>
-              )}
-            </text>
-          )}
+                      ? Colors.missing
+                      : Colors.pendingChange}
+                  >
+                    {hasAnyConflict ? " ⚠" : " ✎"}
+                  </span>
+                )}
+              </text>
+            )}
         </box>
 
         {/* Value columns (one per file) */}

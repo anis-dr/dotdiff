@@ -1,13 +1,13 @@
 /**
  * Hook for edit-related actions (edit, save edit, cancel edit)
  */
-import { useCallback } from "react";
 import { useAtomValue } from "@effect-atom/atom-react";
+import { useCallback } from "react";
 import { currentRowAtom, selectionAtom } from "../state/appState.js";
 import { useEditMode } from "./useEditMode.js";
-import { usePendingChanges } from "./usePendingChanges.js";
 import { useFiles } from "./useFiles.js";
 import { useMessage } from "./useMessage.js";
+import { usePendingChanges } from "./usePendingChanges.js";
 
 export interface UseEditActions {
   handleEnterEditMode: () => void;
@@ -20,8 +20,8 @@ export function useEditActions(): UseEditActions {
   const currentRow = useAtomValue(currentRowAtom);
   const selection = useAtomValue(selectionAtom);
 
-  const { editMode, enterEditMode, updateEditInput, exitEditMode } = useEditMode();
-  const { upsertChange, removeChange } = usePendingChanges();
+  const { editMode, enterEditMode, exitEditMode, updateEditInput } = useEditMode();
+  const { removeChange, upsertChange } = usePendingChanges();
   const { getOriginalValue } = useFiles();
   const { showMessage } = useMessage();
 
@@ -37,7 +37,7 @@ export function useEditActions(): UseEditActions {
     (value: string) => {
       updateEditInput(value);
     },
-    [updateEditInput]
+    [updateEditInput],
   );
 
   const handleSaveEdit = useCallback(
@@ -61,7 +61,7 @@ export function useEditActions(): UseEditActions {
       const trimmed = inputValue.trim();
       if (trimmed === "<null>" || trimmed === "<unset>") {
         newValue = null; // Explicit deletion
-      } else if (trimmed === '""' || trimmed === "''") {
+      } else if (trimmed === "\"\"" || trimmed === "''") {
         newValue = ""; // Explicit empty string
       } else {
         newValue = inputValue; // Use as-is (including empty string)
@@ -86,7 +86,7 @@ export function useEditActions(): UseEditActions {
       exitEditMode();
       showMessage("✓ Value updated");
     },
-    [currentRow, editMode, selectedCol, getOriginalValue, removeChange, upsertChange, exitEditMode, showMessage]
+    [currentRow, editMode, selectedCol, getOriginalValue, removeChange, upsertChange, exitEditMode, showMessage],
   );
 
   const handleCancelEdit = useCallback(() => {
@@ -101,4 +101,3 @@ export function useEditActions(): UseEditActions {
     handleCancelEdit,
   };
 }
-

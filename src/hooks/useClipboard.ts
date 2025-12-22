@@ -3,10 +3,10 @@
  *
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
-import type { Clipboard } from "../types.js";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { clipboardAtom } from "../state/appState.js";
 import { setClipboardOp } from "../state/atomicOps.js";
+import type { Clipboard } from "../types.js";
 
 export interface UseClipboard {
   clipboard: Clipboard | null;

@@ -1,6 +1,6 @@
 /**
  * Shared types for env-differ TUI application
- * 
+ *
  * Uses Effect Schema for runtime validation and branded types for type safety.
  */
 import { Schema } from "effect";
@@ -16,7 +16,7 @@ export type EnvKey = typeof EnvKey.Type;
 /** Branded type for file indices (0-based) */
 export const FileIndex = Schema.Int.pipe(
   Schema.nonNegative(),
-  Schema.brand("FileIndex")
+  Schema.brand("FileIndex"),
 );
 export type FileIndex = typeof FileIndex.Type;
 

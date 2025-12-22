@@ -4,22 +4,22 @@
  * Handles refreshing file state from disk and detecting conflicts
  * with pending changes.
  */
-import { Effect } from "effect";
 import { FileSystem } from "@effect/platform";
-import type { EnvFile } from "../types.js";
-import { parseEnvToMap } from "../services/envFormat.js";
+import { Effect } from "effect";
 import { FileReadError } from "../errors.js";
+import { parseEnvToMap } from "../services/envFormat.js";
+import type { EnvFile } from "../types.js";
 
 /**
  * Re-read a single file from disk and return updated variables.
  */
 export const readFileFromDisk = (
-  filePath: string
+  filePath: string,
 ): Effect.Effect<Map<string, string>, FileReadError, FileSystem.FileSystem> =>
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     const fs = yield* FileSystem.FileSystem;
     const content = yield* fs.readFileString(filePath).pipe(
-      Effect.mapError((e) => FileReadError.make({ path: filePath, cause: e }))
+      Effect.mapError((e) => FileReadError.make({ path: filePath, cause: e })),
     );
     return parseEnvToMap(content);
   });
@@ -29,7 +29,7 @@ export const readFileFromDisk = (
  */
 export const findFileIndex = (
   files: ReadonlyArray<EnvFile>,
-  filePath: string
+  filePath: string,
 ): number => {
   // Normalize paths for comparison
   for (let i = 0; i < files.length; i++) {
