@@ -1,9 +1,11 @@
 /**
  * Hook for layout state management
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtom } from "jotai";
-import { useCallback } from "react";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import { colWidthsAtom } from "../state/appState.js";
+import { setColWidthsOp } from "../state/atomicOps.js";
 
 export interface UseLayout {
   colWidths: ReadonlyArray<number>;
@@ -11,18 +13,14 @@ export interface UseLayout {
 }
 
 export function useLayout(): UseLayout {
-  const [colWidths, setColWidthsAtom] = useAtom(colWidthsAtom);
+  // Read state
+  const colWidths = useAtomValue(colWidthsAtom);
 
-  const setColWidths = useCallback(
-    (newColWidths: ReadonlyArray<number>) => {
-      setColWidthsAtom(newColWidths);
-    },
-    [setColWidthsAtom]
-  );
+  // Atomic operations
+  const setColWidths = useAtomSet(setColWidthsOp);
 
   return {
     colWidths,
     setColWidths,
   };
 }
-

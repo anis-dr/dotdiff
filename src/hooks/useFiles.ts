@@ -1,16 +1,13 @@
 /**
  * Hook for files state management
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtom, useAtomValue } from "jotai";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import { useCallback } from "react";
 import type { EnvFile } from "../types.js";
-import {
-  filesAtom,
-  pendingAtom,
-  conflictsAtom,
-  pendingKey,
-  fileCountAtom,
-} from "../state/appState.js";
+import { filesAtom, fileCountAtom } from "../state/appState.js";
+import { setFilesOp, updateFileFromDiskOp } from "../state/atomicOps.js";
 
 export interface UseFiles {
   files: ReadonlyArray<EnvFile>;
@@ -21,52 +18,23 @@ export interface UseFiles {
 }
 
 export function useFiles(): UseFiles {
-  const [files, setFilesAtom] = useAtom(filesAtom);
-  const [pending] = useAtom(pendingAtom);
-  const [conflicts, setConflicts] = useAtom(conflictsAtom);
+  // Read state
+  const files = useAtomValue(filesAtom);
   const fileCount = useAtomValue(fileCountAtom);
 
-  const setFiles = useCallback(
-    (newFiles: ReadonlyArray<EnvFile>) => {
-      setFilesAtom(newFiles);
-    },
-    [setFilesAtom]
-  );
+  // Atomic operations
+  const setFiles = useAtomSet(setFilesOp);
+  const doUpdateFileFromDisk = useAtomSet(updateFileFromDiskOp);
 
+  // Wrapper to match expected signature
   const updateFileFromDisk = useCallback(
     (fileIndex: number, newVariables: ReadonlyMap<string, string>) => {
-      setFilesAtom((prevFiles) => {
-        const file = prevFiles[fileIndex];
-        if (!file) return prevFiles;
-        return prevFiles.map((f, i) =>
-          i === fileIndex ? { ...f, variables: newVariables } : f
-        );
-      });
-
-      // Detect conflicts: pending changes where oldValue no longer matches disk
-      setConflicts((prevConflicts: ReadonlySet<string>) => {
-        const newConflicts = new Set(prevConflicts);
-
-        for (const [pKey, change] of pending) {
-          if (change.fileIndex !== fileIndex) continue;
-
-          const diskValue = newVariables.get(change.key) ?? null;
-          const wasConflict = prevConflicts.has(pKey);
-          const isConflict = diskValue !== change.oldValue;
-
-          if (isConflict && !wasConflict) {
-            newConflicts.add(pKey);
-          } else if (!isConflict && wasConflict) {
-            newConflicts.delete(pKey);
-          }
-        }
-
-        return newConflicts;
-      });
+      doUpdateFileFromDisk({ fileIndex, newVariables });
     },
-    [setFilesAtom, setConflicts, pending]
+    [doUpdateFileFromDisk]
   );
 
+  // Pure read operation - no atomic op needed
   const getOriginalValue = useCallback(
     (varKey: string, fileIndex: number): string | null => {
       const file = files[fileIndex];
@@ -84,4 +52,3 @@ export function useFiles(): UseFiles {
     getOriginalValue,
   };
 }
-

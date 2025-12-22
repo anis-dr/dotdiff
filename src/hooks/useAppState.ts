@@ -8,7 +8,7 @@
  * - useSelection, usePendingChanges, useSearch, useModal, useEditMode,
  *   useClipboard, useMessage, useFiles, useLayout
  */
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import { useCallback, useMemo, useRef, useEffect } from "react";
 import type { Clipboard, DiffRow, EnvFile, ModalState, PendingChange } from "../types.js";
 import {

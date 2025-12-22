@@ -2,7 +2,7 @@
  * Hook for clipboard-related actions (copy, paste, paste all)
  */
 import { useCallback } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import type { DiffRow, PendingChange } from "../types.js";
 import { currentRowAtom, fileCountAtom, selectionAtom } from "../state/appState.js";
 import { useClipboard } from "./useClipboard.js";

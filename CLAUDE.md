@@ -31,6 +31,9 @@ Topics include: services and layers, data modeling, error handling, configuratio
 **Effect Source Reference:** `~/.local/share/effect-solutions/effect`
 Search here for real implementations when docs aren't enough.
 
+**Effect Atom Source Reference:** `~/.local/share/effect-solutions/effect-atom`
+Search here for real implementations when docs aren't enough.
+
 **OpenTUI Source Reference:** `~/.local/share/effect-solutions/opentui`
 Search here for OpenTUI components, renderers, and TUI patterns. Key paths:
 - `packages/core/` - Core library with renderables, renderer, and primitives

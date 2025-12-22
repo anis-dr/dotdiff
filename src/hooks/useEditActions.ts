@@ -2,7 +2,7 @@
  * Hook for edit-related actions (edit, save edit, cancel edit)
  */
 import { useCallback } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import { currentRowAtom, selectionAtom } from "../state/appState.js";
 import { useEditMode } from "./useEditMode.js";
 import { usePendingChanges } from "./usePendingChanges.js";

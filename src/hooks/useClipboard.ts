@@ -1,10 +1,12 @@
 /**
  * Hook for clipboard state management
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtom } from "jotai";
-import { useCallback } from "react";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import type { Clipboard } from "../types.js";
 import { clipboardAtom } from "../state/appState.js";
+import { setClipboardOp } from "../state/atomicOps.js";
 
 export interface UseClipboard {
   clipboard: Clipboard | null;
@@ -12,18 +14,14 @@ export interface UseClipboard {
 }
 
 export function useClipboard(): UseClipboard {
-  const [clipboard, setClipboardAtom] = useAtom(clipboardAtom);
+  // Read state
+  const clipboard = useAtomValue(clipboardAtom);
 
-  const setClipboard = useCallback(
-    (newClipboard: Clipboard) => {
-      setClipboardAtom(newClipboard);
-    },
-    [setClipboardAtom]
-  );
+  // Atomic operations
+  const setClipboard = useAtomSet(setClipboardOp);
 
   return {
     clipboard,
     setClipboard,
   };
 }
-

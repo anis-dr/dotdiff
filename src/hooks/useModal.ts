@@ -1,10 +1,12 @@
 /**
  * Hook for modal state management
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtom } from "jotai";
-import { useCallback } from "react";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import type { ModalState } from "../types.js";
 import { modalAtom } from "../state/appState.js";
+import { openModalOp, closeModalOp } from "../state/atomicOps.js";
 
 export interface UseModal {
   modal: ModalState | null;
@@ -13,18 +15,12 @@ export interface UseModal {
 }
 
 export function useModal(): UseModal {
-  const [modal, setModal] = useAtom(modalAtom);
+  // Read state
+  const modal = useAtomValue(modalAtom);
 
-  const openModal = useCallback(
-    (modalState: ModalState) => {
-      setModal(modalState);
-    },
-    [setModal]
-  );
-
-  const closeModal = useCallback(() => {
-    setModal(null);
-  }, [setModal]);
+  // Atomic operations
+  const openModal = useAtomSet(openModalOp);
+  const closeModal = useAtomSet(closeModalOp);
 
   return {
     modal,
@@ -32,4 +28,3 @@ export function useModal(): UseModal {
     closeModal,
   };
 }
-

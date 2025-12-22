@@ -1,7 +1,7 @@
 /**
  * Footer component - displays clipboard, pending changes, and keybindings
  */
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import { Colors } from "../types.js";
 import { truncate, TRUNCATE_CLIPBOARD } from "../utils/index.js";
 import { appStateAtom, pendingListAtom } from "../state/appState.js";

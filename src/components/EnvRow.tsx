@@ -3,7 +3,7 @@
  * Layout: [Key/Status column] | [File A value] | [File B value]
  */
 import { useCallback, useRef } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, VariableStatus } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";

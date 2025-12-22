@@ -4,7 +4,7 @@
  * Each atom slice only triggers re-renders for components that depend on it.
  * Derived atoms compute values from the base atoms.
  */
-import { atom } from "jotai";
+import { Atom } from "@effect-atom/atom-react";
 import type {
   Clipboard,
   DiffRow,
@@ -29,37 +29,37 @@ export const pendingKey = (varKey: string, fileIndex: number): string =>
 // =============================================================================
 
 /** Files as loaded from disk */
-export const filesAtom = atom<ReadonlyArray<EnvFile>>([]);
+export const filesAtom = Atom.make<ReadonlyArray<EnvFile>>([]).pipe(Atom.keepAlive);
 
 /** Pending changes - keyed by "${varKey}:${fileIndex}" */
-export const pendingAtom = atom<ReadonlyMap<string, PendingChange>>(new Map());
+export const pendingAtom = Atom.make<ReadonlyMap<string, PendingChange>>(new Map()).pipe(Atom.keepAlive);
 
 /** Conflicts - set of pendingKey strings where disk value changed */
-export const conflictsAtom = atom<ReadonlySet<string>>(new Set<string>());
+export const conflictsAtom = Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive);
 
 /** Selection state */
-export const selectionAtom = atom<{ readonly row: number; readonly col: number }>({
+export const selectionAtom = Atom.make<{ readonly row: number; readonly col: number }>({
   row: 0,
   col: 0,
-});
+}).pipe(Atom.keepAlive);
 
 /** Edit mode state */
-export const editModeAtom = atom<EditMode | null>(null);
+export const editModeAtom = Atom.make<EditMode | null>(null).pipe(Atom.keepAlive);
 
 /** Clipboard state */
-export const clipboardAtom = atom<Clipboard | null>(null);
+export const clipboardAtom = Atom.make<Clipboard | null>(null).pipe(Atom.keepAlive);
 
 /** Search state */
-export const searchAtom = atom<SearchState>({ active: false, query: "" });
+export const searchAtom = Atom.make<SearchState>({ active: false, query: "" }).pipe(Atom.keepAlive);
 
 /** Modal state */
-export const modalAtom = atom<ModalState | null>(null);
+export const modalAtom = Atom.make<ModalState | null>(null).pipe(Atom.keepAlive);
 
 /** Message state */
-export const messageAtom = atom<string | null>(null);
+export const messageAtom = Atom.make<string | null>(null).pipe(Atom.keepAlive);
 
 /** Layout column widths */
-export const colWidthsAtom = atom<ReadonlyArray<number>>([]);
+export const colWidthsAtom = Atom.make<ReadonlyArray<number>>([]).pipe(Atom.keepAlive);
 
 // =============================================================================
 // App State Type (composite for backward compatibility)
@@ -108,16 +108,15 @@ export const initialAppState: AppState = {
 };
 
 // =============================================================================
-// Composite App State Atom (backward compatible read/write)
+// Composite App State Atom (backward compatible read-only)
 // =============================================================================
 
 /**
  * Composite atom that combines all base atoms into a single AppState.
- * This provides backward compatibility while still allowing granular subscriptions.
+ * This provides backward compatibility for reading state.
+ * For writing, use the individual atoms directly.
  */
-export const appStateAtom = atom(
-  // Getter: compose from base atoms
-  (get): AppState => ({
+export const appStateAtom = Atom.make((get): AppState => ({
     files: get(filesAtom),
     pending: get(pendingAtom),
     conflicts: get(conflictsAtom),
@@ -128,25 +127,7 @@ export const appStateAtom = atom(
     modal: get(modalAtom),
     message: get(messageAtom),
     colWidths: get(colWidthsAtom),
-  }),
-  // Setter: dispatch updates to individual atoms
-  (get, set, update: AppState | ((prev: AppState) => AppState)) => {
-    const prev = get(appStateAtom);
-    const next = typeof update === "function" ? update(prev) : update;
-
-    // Only update atoms that actually changed
-    if (next.files !== prev.files) set(filesAtom, next.files);
-    if (next.pending !== prev.pending) set(pendingAtom, next.pending);
-    if (next.conflicts !== prev.conflicts) set(conflictsAtom, next.conflicts);
-    if (next.selection !== prev.selection) set(selectionAtom, next.selection);
-    if (next.editMode !== prev.editMode) set(editModeAtom, next.editMode);
-    if (next.clipboard !== prev.clipboard) set(clipboardAtom, next.clipboard);
-    if (next.search !== prev.search) set(searchAtom, next.search);
-    if (next.modal !== prev.modal) set(modalAtom, next.modal);
-    if (next.message !== prev.message) set(messageAtom, next.message);
-    if (next.colWidths !== prev.colWidths) set(colWidthsAtom, next.colWidths);
-  }
-);
+}));
 
 // =============================================================================
 // Derived Atoms
@@ -156,7 +137,7 @@ export const appStateAtom = atom(
  * Computes diff rows from files + pending changes.
  * This is the "effective" view - what the user sees and what will be saved.
  */
-export const effectiveDiffRowsAtom = atom((get): ReadonlyArray<DiffRow> => {
+export const effectiveDiffRowsAtom = Atom.make((get): ReadonlyArray<DiffRow> => {
   const files = get(filesAtom);
   const pending = get(pendingAtom);
 
@@ -212,7 +193,7 @@ export const effectiveDiffRowsAtom = atom((get): ReadonlyArray<DiffRow> => {
 /**
  * The currently selected row with effective values
  */
-export const currentRowAtom = atom((get): DiffRow | null => {
+export const currentRowAtom = Atom.make((get): DiffRow | null => {
   const selection = get(selectionAtom);
   const rows = get(effectiveDiffRowsAtom);
   return rows[selection.row] ?? null;
@@ -221,7 +202,7 @@ export const currentRowAtom = atom((get): DiffRow | null => {
 /**
  * Stats: counts of identical/different/missing rows
  */
-export const statsAtom = atom((get) => {
+export const statsAtom = Atom.make((get) => {
   const rows = get(effectiveDiffRowsAtom);
   const counts = { identical: 0, different: 0, missing: 0 };
   for (const row of rows) {
@@ -233,15 +214,14 @@ export const statsAtom = atom((get) => {
 /**
  * Pending changes as a flat array (for iteration, save preview, etc.)
  */
-export const pendingListAtom = atom((get): ReadonlyArray<PendingChange> => {
-  const pending = get(pendingAtom);
-  return Array.from(pending.values());
-});
+export const pendingListAtom = Atom.map(pendingAtom, (pending): ReadonlyArray<PendingChange> =>
+  Array.from(pending.values())
+);
 
 /**
  * Filtered row indices based on search query
  */
-export const filteredRowIndicesAtom = atom((get): ReadonlyArray<number> => {
+export const filteredRowIndicesAtom = Atom.make((get): ReadonlyArray<number> => {
   const search = get(searchAtom);
   const rows = get(effectiveDiffRowsAtom);
 
@@ -259,15 +239,9 @@ export const filteredRowIndicesAtom = atom((get): ReadonlyArray<number> => {
 /**
  * File count (convenience)
  */
-export const fileCountAtom = atom((get): number => {
-  const files = get(filesAtom);
-  return files.length;
-});
+export const fileCountAtom = Atom.map(filesAtom, (files): number => files.length);
 
 /**
  * Row count (convenience)
  */
-export const rowCountAtom = atom((get): number => {
-  const rows = get(effectiveDiffRowsAtom);
-  return rows.length;
-});
+export const rowCountAtom = Atom.map(effectiveDiffRowsAtom, (rows): number => rows.length);

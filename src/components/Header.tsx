@@ -2,7 +2,7 @@
  * Header component - displays key column header and file names with counts
  * Layout: [Key] | [File A] | [File B]
  */
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import { Colors } from "../types.js";
 import { appStateAtom } from "../state/appState.js";
 

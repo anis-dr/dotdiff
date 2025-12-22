@@ -2,7 +2,7 @@
  * Hook for undo-related actions
  */
 import { useCallback } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import { currentRowAtom, pendingListAtom, selectionAtom } from "../state/appState.js";
 import { usePendingChanges } from "./usePendingChanges.js";
 import { useMessage } from "./useMessage.js";

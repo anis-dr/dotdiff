@@ -2,7 +2,7 @@
  * Hook for delete-related actions
  */
 import { useCallback } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import type { PendingChange } from "../types.js";
 import { currentRowAtom, fileCountAtom, pendingListAtom, selectionAtom } from "../state/appState.js";
 import { usePendingChanges } from "./usePendingChanges.js";

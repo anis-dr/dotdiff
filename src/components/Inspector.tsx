@@ -2,7 +2,7 @@
  * Inspector component - shows full key/value details for the selected row
  * Displays old->new when pending changes exist
  */
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import type { DiffRow } from "../types.js";
 import { Colors } from "../types.js";
 import { formatDisplayValue } from "../utils/index.js";

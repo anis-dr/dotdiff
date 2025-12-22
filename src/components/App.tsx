@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTerminalDimensions } from "@opentui/react";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import type { EnvFile, PendingChange } from "../types.js";
 import { Colors } from "../types.js";
 import {
@@ -14,6 +14,7 @@ import {
   rowCountAtom,
   statsAtom,
 } from "../state/appState.js";
+import { saveChangesAtom } from "../state/runtime.js";
 import {
   useSelection,
   useSearch,
@@ -44,15 +45,12 @@ type FileChangeCallback = (fileIndex: number, newVars: ReadonlyMap<string, strin
 
 interface AppProps {
   readonly initialFiles: ReadonlyArray<EnvFile>;
-  readonly onSave: (
-    changes: ReadonlyArray<PendingChange>
-  ) => Promise<ReadonlyArray<EnvFile>>;
   readonly onQuit: () => void;
   /** Register callback to receive file change events from the watcher */
   readonly onRegisterFileChange?: (cb: FileChangeCallback) => void;
 }
 
-export function App({ initialFiles, onSave, onQuit, onRegisterFileChange }: AppProps) {
+export function App({ initialFiles, onQuit, onRegisterFileChange }: AppProps) {
   const { width: terminalWidth } = useTerminalDimensions();
 
   // Derived atoms
@@ -72,6 +70,9 @@ export function App({ initialFiles, onSave, onQuit, onRegisterFileChange }: AppP
   const { showMessage } = useMessage();
   const { setColWidths } = useLayout();
   const { clearChanges } = usePendingChanges();
+
+  // Effectful save action from the runtime - use "promise" mode to await result
+  const saveChanges = useAtomSet(saveChangesAtom, { mode: "promise" });
 
   // Action hooks
   const { handleCopy, handlePaste, handlePasteAll } = useClipboardActions();
@@ -136,10 +137,11 @@ export function App({ initialFiles, onSave, onQuit, onRegisterFileChange }: AppP
     openModal({ type: "save" });
   }, [pendingList.length, showMessage, openModal]);
 
-  // Actually perform the save
+  // Actually perform the save using the effectful saveChangesAtom
   const doSave = useCallback(async () => {
     try {
-      const updatedFiles = await onSave(pendingList);
+      // saveChanges is an Atom.fn with promise mode - returns the updated files
+      const updatedFiles = await saveChanges({ files, changes: pendingList });
       setFiles(updatedFiles);
       clearChanges();
       closeModal();
@@ -148,7 +150,7 @@ export function App({ initialFiles, onSave, onQuit, onRegisterFileChange }: AppP
       const msg = err instanceof Error ? err.message : String(err);
       showMessage(`⚠ Save failed: ${msg}`);
     }
-  }, [pendingList, onSave, setFiles, clearChanges, closeModal, showMessage]);
+  }, [files, pendingList, saveChanges, setFiles, clearChanges, closeModal, showMessage]);
 
   // Open quit confirmation modal if dirty
   const handleQuit = useCallback(() => {

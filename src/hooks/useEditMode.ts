@@ -1,10 +1,17 @@
 /**
  * Hook for edit mode state management
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtom } from "jotai";
-import { useCallback } from "react";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import type { EditMode } from "../types.js";
 import { editModeAtom } from "../state/appState.js";
+import {
+  enterEditModeOp,
+  enterAddModeOp,
+  updateEditInputOp,
+  exitEditModeOp,
+} from "../state/atomicOps.js";
 
 export interface UseEditMode {
   editMode: EditMode | null;
@@ -15,45 +22,14 @@ export interface UseEditMode {
 }
 
 export function useEditMode(): UseEditMode {
-  const [editMode, setEditMode] = useAtom(editModeAtom);
+  // Read state
+  const editMode = useAtomValue(editModeAtom);
 
-  const enterEditMode = useCallback(
-    (currentValue: string) => {
-      setEditMode({
-        phase: "editValue",
-        inputValue: currentValue,
-        dirty: false,
-      });
-    },
-    [setEditMode]
-  );
-
-  const enterAddMode = useCallback(() => {
-    setEditMode({
-      phase: "addKey",
-      inputValue: "",
-      isNewRow: true,
-      dirty: false,
-    });
-  }, [setEditMode]);
-
-  const updateEditInput = useCallback(
-    (value: string) => {
-      setEditMode((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          inputValue: value,
-          dirty: true,
-        };
-      });
-    },
-    [setEditMode]
-  );
-
-  const exitEditMode = useCallback(() => {
-    setEditMode(null);
-  }, [setEditMode]);
+  // Atomic operations
+  const enterEditMode = useAtomSet(enterEditModeOp);
+  const enterAddMode = useAtomSet(enterAddModeOp);
+  const updateEditInput = useAtomSet(updateEditInputOp);
+  const exitEditMode = useAtomSet(exitEditModeOp);
 
   return {
     editMode,
@@ -63,4 +39,3 @@ export function useEditMode(): UseEditMode {
     exitEditMode,
   };
 }
-

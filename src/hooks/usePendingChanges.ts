@@ -1,7 +1,9 @@
 /**
  * Hook for pending changes state management
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtom, useAtomValue } from "jotai";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import { useCallback } from "react";
 import type { PendingChange } from "../types.js";
 import {
@@ -10,6 +12,14 @@ import {
   pendingKey,
   pendingListAtom,
 } from "../state/appState.js";
+import {
+  upsertChangeOp,
+  removeChangeOp,
+  removeChangesForKeyOp,
+  clearChangesOp,
+  undoLastOp,
+  addChangesOp,
+} from "../state/atomicOps.js";
 
 export interface UsePendingChanges {
   pending: ReadonlyMap<string, PendingChange>;
@@ -25,99 +35,54 @@ export interface UsePendingChanges {
 }
 
 export function usePendingChanges(): UsePendingChanges {
-  const [pending, setPending] = useAtom(pendingAtom);
-  const [conflicts, setConflicts] = useAtom(conflictsAtom);
+  // Read state
+  const pending = useAtomValue(pendingAtom);
+  const conflicts = useAtomValue(conflictsAtom);
   const pendingList = useAtomValue(pendingListAtom);
 
-  const upsertChange = useCallback(
-    (change: PendingChange) => {
-      const key = pendingKey(change.key, change.fileIndex);
-      setPending((prev) => {
-        const next = new Map(prev);
-        next.set(key, change);
-        return next;
-      });
-    },
-    [setPending]
-  );
+  // Atomic operations
+  const upsertChange = useAtomSet(upsertChangeOp);
+  const doRemoveChange = useAtomSet(removeChangeOp);
+  const doRemoveChangesForKey = useAtomSet(removeChangesForKeyOp);
+  const clearChanges = useAtomSet(clearChangesOp);
+  const doUndoLast = useAtomSet(undoLastOp);
+  const addChanges = useAtomSet(addChangesOp);
 
+  // Wrapper for removeChange to match expected signature
   const removeChange = useCallback(
     (varKey: string, fileIndex: number) => {
-      const key = pendingKey(varKey, fileIndex);
-      setPending((prev) => {
-        if (!prev.has(key)) return prev;
-        const next = new Map(prev);
-        next.delete(key);
-        return next;
-      });
-      setConflicts((prev) => {
-        if (!prev.has(key)) return prev;
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
+      doRemoveChange({ varKey, fileIndex });
     },
-    [setPending, setConflicts]
+    [doRemoveChange]
   );
 
+  // Wrapper for removeChangesForKey to match expected signature
   const removeChangesForKey = useCallback(
     (varKey: string, excludeFileIndex?: number) => {
-      setPending((prev) => {
-        const next = new Map<string, PendingChange>();
-        for (const [key, change] of prev) {
-          if (change.key === varKey) {
-            if (excludeFileIndex !== undefined && change.fileIndex === excludeFileIndex) {
-              next.set(key, change);
-            }
+      if (excludeFileIndex !== undefined) {
+        doRemoveChangesForKey({ varKey, excludeFileIndex });
           } else {
-            next.set(key, change);
+        doRemoveChangesForKey({ varKey });
           }
-        }
-        return next;
-      });
     },
-    [setPending]
+    [doRemoveChangesForKey]
   );
 
-  const clearChanges = useCallback(() => {
-    setPending(new Map());
-    setConflicts(new Set());
-  }, [setPending, setConflicts]);
-
+  // undoLast returns the value from the fnSync
   const undoLast = useCallback((): boolean => {
-    let didUndo = false;
-    setPending((prev) => {
-      if (prev.size === 0) return prev;
-      const keys = Array.from(prev.keys());
-      const lastKey = keys[keys.length - 1]!;
-      const next = new Map(prev);
-      next.delete(lastKey);
-      didUndo = true;
-      return next;
-    });
-    return didUndo;
-  }, [setPending]);
+    doUndoLast();
+    // Note: undoLastOp returns boolean via Option, but useAtomSet doesn't return values
+    // We need to check pending size for the return value
+    return pending.size > 0;
+  }, [doUndoLast, pending.size]);
 
+  // findChange is a pure read operation, doesn't need atomic op
   const findChange = useCallback(
     (varKey: string, fileIndex: number): PendingChange | undefined => {
       const key = pendingKey(varKey, fileIndex);
       return pending.get(key);
     },
     [pending]
-  );
-
-  const addChanges = useCallback(
-    (changes: ReadonlyArray<PendingChange>) => {
-      setPending((prev) => {
-        const next = new Map(prev);
-        for (const change of changes) {
-          const key = pendingKey(change.key, change.fileIndex);
-          next.set(key, change);
-        }
-        return next;
-      });
-    },
-    [setPending]
   );
 
   return {
@@ -133,4 +98,3 @@ export function usePendingChanges(): UsePendingChanges {
     addChanges,
   };
 }
-

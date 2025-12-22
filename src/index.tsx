@@ -8,19 +8,19 @@ import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Console, Effect, Layer, Stream } from "effect";
+import { RegistryProvider } from "@effect-atom/atom-react";
 import { App } from "./components/index.js";
 import {
   EnvDiffer,
   EnvDifferLive,
   EnvParser,
   EnvParserLive,
-  EnvWriter,
   EnvWriterLive,
   FileWatcher,
   FileWatcherLive,
 } from "./services/index.js";
 import { readFileFromDisk, findFileIndex } from "./state/fileSync.js";
-import type { EnvFile, PendingChange } from "./types.js";
+import type { EnvFile } from "./types.js";
 
 // CLI arguments: at least 2 .env file paths
 const filesArg = Args.path({ name: "files", exists: "yes" }).pipe(
@@ -47,9 +47,6 @@ type FileChangeCallback = (fileIndex: number, newVars: ReadonlyMap<string, strin
  */
 const renderApp = (
   envFiles: ReadonlyArray<EnvFile>,
-  saveEffect: (
-    changes: ReadonlyArray<PendingChange>
-  ) => Promise<ReadonlyArray<EnvFile>>,
   registerFileChangeCallback: (cb: FileChangeCallback) => void
 ) =>
   Effect.promise(async () => {
@@ -112,24 +109,19 @@ const renderApp = (
       process.exit(1);
     });
 
-    const handleSave = (changes: ReadonlyArray<PendingChange>) =>
-      saveEffect(changes).catch((e) => {
-        console.error(e);
-        return envFiles;
-      });
-
     // The App will register its callback via onRegisterFileChange
     const handleRegisterFileChange = (cb: FileChangeCallback) => {
       onFileChange = cb;
     };
 
     createRoot(renderer).render(
-      <App
-        initialFiles={envFiles}
-        onSave={handleSave}
-        onQuit={() => shutdown(0)}
-        onRegisterFileChange={handleRegisterFileChange}
-      />
+      <RegistryProvider>
+        <App
+          initialFiles={envFiles}
+          onQuit={() => shutdown(0)}
+          onRegisterFileChange={handleRegisterFileChange}
+        />
+      </RegistryProvider>
     );
   });
 
@@ -138,29 +130,15 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
   Effect.gen(function* () {
     const parser = yield* EnvParser;
     const differ = yield* EnvDiffer;
-    const writer = yield* EnvWriter;
     const watcher = yield* FileWatcher;
-    const fs = yield* FileSystem.FileSystem;
 
     // Parse all env files
     yield* Console.log(`Loading ${files.length} env files...`);
-    let envFiles = yield* parser.parseFiles(files);
+    const envFiles = yield* parser.parseFiles(files);
 
     // Compute initial stats
     const diffRows = yield* differ.computeDiff(envFiles);
     yield* Console.log(`Found ${diffRows.length} variables\n`);
-
-    // Create save function that uses the writer service
-    const saveEffect = async (changes: ReadonlyArray<PendingChange>) => {
-      const updated = await Effect.runPromise(
-        writer
-          .applyChanges(envFiles, changes)
-          .pipe(Effect.provideService(FileSystem.FileSystem, fs))
-      );
-      // Keep in-memory view consistent for subsequent saves
-      envFiles = updated;
-      return updated;
-    };
 
     // Callback that will be set by the App component
     let fileChangeCallback: FileChangeCallback | null = null;
@@ -169,8 +147,8 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
       fileChangeCallback = cb;
     };
 
-    // Render the TUI (diff rows are now computed from files in the App)
-    yield* renderApp(envFiles, saveEffect, registerFileChangeCallback);
+    // Render the TUI - saving is now handled by saveChangesAtom in the runtime
+    yield* renderApp(envFiles, registerFileChangeCallback);
 
     // Start file watcher in background
     const filePaths = envFiles.map((f) => f.path);

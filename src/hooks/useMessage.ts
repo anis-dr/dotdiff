@@ -1,9 +1,13 @@
 /**
  * Hook for message state management with proper timeout cleanup
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
+ * Note: Timeout logic is kept imperative as it involves React refs.
  */
-import { useAtom } from "jotai";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import { useCallback, useRef, useEffect } from "react";
 import { messageAtom } from "../state/appState.js";
+import { setMessageOp } from "../state/atomicOps.js";
 import { MESSAGE_DISPLAY_DURATION_MS } from "../constants.js";
 
 export interface UseMessage {
@@ -12,7 +16,12 @@ export interface UseMessage {
 }
 
 export function useMessage(): UseMessage {
-  const [message, setMessage] = useAtom(messageAtom);
+  // Read state
+  const message = useAtomValue(messageAtom);
+
+  // Atomic operations
+  const setMessage = useAtomSet(setMessageOp);
+
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup timeout on unmount
@@ -34,13 +43,8 @@ export function useMessage(): UseMessage {
       setMessage(newMessage);
 
       timeoutRef.current = setTimeout(() => {
-        setMessage((current) => {
-          // Only clear if it's still the same message
-          if (current === newMessage) {
-            return null;
-          }
-          return current;
-        });
+        // Clear the message after timeout
+        setMessage(null);
         timeoutRef.current = null;
       }, durationMs);
     },
@@ -52,4 +56,3 @@ export function useMessage(): UseMessage {
     showMessage,
   };
 }
-

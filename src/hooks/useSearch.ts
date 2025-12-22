@@ -1,10 +1,16 @@
 /**
  * Hook for search state management
+ *
+ * Uses atomic operations from atomicOps.ts for clean state updates.
  */
-import { useAtom } from "jotai";
-import { useCallback } from "react";
+import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import type { SearchState } from "../types.js";
 import { searchAtom } from "../state/appState.js";
+import {
+  openSearchOp,
+  closeSearchOp,
+  setSearchQueryOp,
+} from "../state/atomicOps.js";
 
 export interface UseSearch {
   search: SearchState;
@@ -14,22 +20,13 @@ export interface UseSearch {
 }
 
 export function useSearch(): UseSearch {
-  const [search, setSearch] = useAtom(searchAtom);
+  // Read state
+  const search = useAtomValue(searchAtom);
 
-  const openSearch = useCallback(() => {
-    setSearch({ active: true, query: "" });
-  }, [setSearch]);
-
-  const closeSearch = useCallback(() => {
-    setSearch({ active: false, query: "" });
-  }, [setSearch]);
-
-  const setSearchQuery = useCallback(
-    (query: string) => {
-      setSearch((prev) => ({ ...prev, query }));
-    },
-    [setSearch]
-  );
+  // Atomic operations
+  const openSearch = useAtomSet(openSearchOp);
+  const closeSearch = useAtomSet(closeSearchOp);
+  const setSearchQuery = useAtomSet(setSearchQueryOp);
 
   return {
     search,
@@ -38,4 +35,3 @@ export function useSearch(): UseSearch {
     setSearchQuery,
   };
 }
-

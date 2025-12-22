@@ -2,7 +2,7 @@
  * Hook for sync actions (sync left/right for 2-file mode)
  */
 import { useCallback } from "react";
-import { useAtomValue } from "jotai";
+import { useAtomValue } from "@effect-atom/atom-react";
 import { currentRowAtom, fileCountAtom } from "../state/appState.js";
 import { usePendingChanges } from "./usePendingChanges.js";
 import { useFiles } from "./useFiles.js";
