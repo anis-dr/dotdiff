@@ -13,11 +13,14 @@ import {
   EnvWriter,
   EnvWriterLive,
   FileWatcherLive,
+  type FileChangeEvent,
 } from "../services/index.js";
 import type { EnvFile, PendingChange } from "../types.js";
 
 /**
  * Combined layer providing all application services.
+ * Note: FileChangePubSub is NOT included here - we use a simple atom instead
+ * to avoid the issue of separate layer instances between CLI and atom runtime.
  */
 const AppServicesLive = Layer.mergeAll(
   EnvParserLive,
@@ -53,6 +56,16 @@ export const saveChangesAtom = appRuntime.fn(
     const updatedFiles = yield* writer.applyChanges(args.files, args.changes);
     return updatedFiles;
   })
+);
+
+/**
+ * Simple writable atom for file change events.
+ * The CLI pushes events here directly, and React subscribes to it.
+ * This bypasses the PubSub layer issue where CLI and atom runtime
+ * have separate layer instances.
+ */
+export const fileChangeEventAtom = Atom.make<FileChangeEvent | null>(null).pipe(
+  Atom.keepAlive
 );
 
 /**

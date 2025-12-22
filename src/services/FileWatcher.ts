@@ -4,7 +4,7 @@
  * Uses Effect Platform's FileSystem.watch with debouncing to detect
  * when files are modified externally.
  */
-import { Context, Effect, Layer, Stream, pipe } from "effect";
+import { Context, Effect, Layer, PubSub, Stream, pipe } from "effect";
 import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import { FILE_WATCHER_DEBOUNCE_MS } from "../constants.js";
@@ -14,6 +14,15 @@ export interface FileChangeEvent {
   readonly path: string;
   readonly type: "update" | "remove";
 }
+
+/**
+ * PubSub for broadcasting file change events from the watcher to React atoms.
+ * This provides a clean Effect-native bridge instead of mutable callbacks.
+ */
+export class FileChangePubSub extends Context.Tag("@envy/FileChangePubSub")<
+  FileChangePubSub,
+  PubSub.PubSub<FileChangeEvent>
+>() {}
 
 export class FileWatcher extends Context.Tag("@envy/FileWatcher")<
   FileWatcher,

@@ -1,14 +1,17 @@
 /**
  * envy CLI entry point
  * Syncs .env files with a TUI diff viewer
+ *
+ * Uses Effect.acquireRelease for proper renderer lifecycle management
+ * and PubSub for bridging file watcher events to React.
  */
 import { Args, Command, HelpDoc, Span, ValidationError } from "@effect/cli";
-import { FileSystem } from "@effect/platform";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
-import { Console, Effect, Layer, Stream } from "effect";
-import { RegistryProvider } from "@effect-atom/atom-react";
+import { Console, Deferred, Effect, Layer, Stream } from "effect";
+import { RegistryContext, Registry } from "@effect-atom/atom-react";
+import React from "react";
 import { App } from "./components/index.js";
 import {
   EnvDiffer,
@@ -19,7 +22,7 @@ import {
   FileWatcher,
   FileWatcherLive,
 } from "./services/index.js";
-import { readFileFromDisk, findFileIndex } from "./state/fileSync.js";
+import { fileChangeEventAtom } from "./state/runtime.js";
 import type { EnvFile } from "./types.js";
 
 // CLI arguments: at least 2 .env file paths
@@ -39,89 +42,131 @@ const TERMINAL_RESTORE =
   "\x1b[?1049l" + // Exit alternate screen buffer
   "\x1b[0m"; // Reset all attributes
 
-/** Callback type for file change notifications */
-type FileChangeCallback = (fileIndex: number, newVars: ReadonlyMap<string, string>) => void;
+/**
+ * Restore terminal to normal state.
+ * Safe to call multiple times.
+ */
+const restoreTerminal = Effect.sync(() => {
+  try {
+    process.stdout.write(TERMINAL_RESTORE);
+  } catch {
+    /* stdout may be closed */
+  }
+});
 
 /**
- * Render the TUI application with proper cleanup handling
+ * Managed resource for the TUI renderer.
+ * Uses Effect.acquireRelease for proper lifecycle management.
  */
-const renderApp = (
-  envFiles: ReadonlyArray<EnvFile>,
-  registerFileChangeCallback: (cb: FileChangeCallback) => void
-) =>
-  Effect.promise(async () => {
-    const renderer = await createCliRenderer({ exitOnCtrlC: false });
-    let isShuttingDown = false;
-    let onFileChange: FileChangeCallback | null = null;
-
-    // Register callback to receive file change events from the watcher
-    registerFileChangeCallback((fileIndex, newVars) => {
-      if (onFileChange) {
-        onFileChange(fileIndex, newVars);
-      }
-    });
-
-    const restoreTerminal = () => {
-      try {
-        process.stdout.write(TERMINAL_RESTORE);
-      } catch {
-        /* stdout may be closed */
-      }
-    };
-
-    const shutdown = (exitCode = 0) => {
-      if (isShuttingDown) return;
-      isShuttingDown = true;
-
-      // 1. Stop the renderer (stops render loop, keyboard handling)
+const RendererResource = Effect.acquireRelease(
+  Effect.promise(() => createCliRenderer({ exitOnCtrlC: false })),
+  (renderer) =>
+    Effect.sync(() => {
       try {
         renderer.stop();
       } catch {
         /* ignore */
       }
-
-      // 2. Restore terminal state (cursor, mouse, alt screen)
-      restoreTerminal();
-
-      // 3. Destroy renderer resources
+      try {
+        process.stdout.write(TERMINAL_RESTORE);
+      } catch {
+        /* ignore */
+      }
       try {
         renderer.destroy();
       } catch {
         /* ignore */
       }
+    })
+);
 
-      // 4. Exit on next tick to allow stdout to flush
-      setImmediate(() => process.exit(exitCode));
-    };
+/**
+ * Render the TUI application.
+ * Returns an Effect that resolves when the app signals quit.
+ */
+const renderApp = (
+  envFiles: ReadonlyArray<EnvFile>,
+  shutdownSignal: Deferred.Deferred<void>,
+  registry: Registry.Registry
+) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const renderer = yield* RendererResource;
 
-    // Register cleanup handlers for all exit scenarios
-    process.once("exit", restoreTerminal);
-    process.once("SIGINT", () => shutdown(130)); // 128 + SIGINT(2)
-    process.once("SIGTERM", () => shutdown(143)); // 128 + SIGTERM(15)
-    process.once("uncaughtException", (err) => {
-      restoreTerminal();
-      console.error("Uncaught exception:", err);
-      process.exit(1);
-    });
-    process.once("unhandledRejection", (err) => {
-      restoreTerminal();
-      console.error("Unhandled rejection:", err);
-      process.exit(1);
-    });
+      // Register process signal handlers for clean shutdown
+      const handleSigInt = () => {
+        Effect.runSync(Deferred.succeed(shutdownSignal, undefined));
+      };
+      const handleSigTerm = () => {
+        Effect.runSync(Deferred.succeed(shutdownSignal, undefined));
+      };
+      const handleUncaughtException = (err: Error) => {
+        Effect.runSync(restoreTerminal);
+        console.error("Uncaught exception:", err);
+        process.exit(1);
+      };
+      const handleUnhandledRejection = (err: unknown) => {
+        Effect.runSync(restoreTerminal);
+        console.error("Unhandled rejection:", err);
+        process.exit(1);
+      };
 
-    // The App will register its callback via onRegisterFileChange
-    const handleRegisterFileChange = (cb: FileChangeCallback) => {
-      onFileChange = cb;
-    };
+      process.once("SIGINT", handleSigInt);
+      process.once("SIGTERM", handleSigTerm);
+      process.once("uncaughtException", handleUncaughtException);
+      process.once("unhandledRejection", handleUnhandledRejection);
 
-    createRoot(renderer).render(
-      <RegistryProvider>
-        <App
-          initialFiles={envFiles}
-          onQuit={() => shutdown(0)}
-          onRegisterFileChange={handleRegisterFileChange}
-        />
-      </RegistryProvider>
+      // Clean up signal handlers when scope closes
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          process.removeListener("SIGINT", handleSigInt);
+          process.removeListener("SIGTERM", handleSigTerm);
+          process.removeListener("uncaughtException", handleUncaughtException);
+          process.removeListener(
+            "unhandledRejection",
+            handleUnhandledRejection
+          );
+        })
+      );
+
+      // Render the React app with shared registry
+      createRoot(renderer).render(
+        <RegistryContext.Provider value={registry}>
+          <App
+            initialFiles={envFiles}
+            onQuit={() => {
+              Effect.runSync(Deferred.succeed(shutdownSignal, undefined));
+            }}
+          />
+        </RegistryContext.Provider>
+      );
+
+      // Wait for shutdown signal
+      yield* Deferred.await(shutdownSignal);
+    })
+  );
+
+/**
+ * Start the file watcher and push events directly to the atom.
+ * Runs as a background fiber.
+ */
+const startFileWatcher = (
+  filePaths: ReadonlyArray<string>,
+  registry: Registry.Registry
+) =>
+  Effect.gen(function* () {
+    const watcher = yield* FileWatcher;
+    const watchStream = watcher.watchFiles(filePaths);
+
+    // Push each file change event directly to the atom
+    yield* Stream.runForEach(watchStream, (event) =>
+      Effect.sync(() => {
+        registry.set(fileChangeEventAtom, event);
+      })
+    ).pipe(
+      Effect.catchAll((error) =>
+        Console.error(`File watcher error: ${String(error)}`)
+      )
     );
   });
 
@@ -130,7 +175,6 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
   Effect.gen(function* () {
     const parser = yield* EnvParser;
     const differ = yield* EnvDiffer;
-    const watcher = yield* FileWatcher;
 
     // Parse all env files
     yield* Console.log(`Loading ${files.length} env files...`);
@@ -140,53 +184,18 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
     const diffRows = yield* differ.computeDiff(envFiles);
     yield* Console.log(`Found ${diffRows.length} variables\n`);
 
-    // Callback that will be set by the App component
-    let fileChangeCallback: FileChangeCallback | null = null;
+    // Create shared registry for CLI ↔ React communication
+    const registry = Registry.make();
 
-    const registerFileChangeCallback = (cb: FileChangeCallback) => {
-      fileChangeCallback = cb;
-    };
+    // Create shutdown signal
+    const shutdownSignal = yield* Deferred.make<void>();
 
-    // Render the TUI - saving is now handled by saveChangesAtom in the runtime
-    yield* renderApp(envFiles, registerFileChangeCallback);
-
-    // Start file watcher in background
+    // Start file watcher in background (pushes to shared registry)
     const filePaths = envFiles.map((f) => f.path);
-    const watchStream = watcher.watchFiles(filePaths);
+    yield* startFileWatcher(filePaths, registry).pipe(Effect.fork);
 
-    // Fork the watcher to run in background
-    yield* Stream.runForEach(watchStream, (event) =>
-      Effect.gen(function* () {
-        // Find which file changed
-        const fileIndex = findFileIndex(envFiles, event.path);
-        if (fileIndex === -1) return;
-
-        // Re-read the file from disk
-        const file = envFiles[fileIndex];
-        if (!file) return;
-
-        const newVars = yield* readFileFromDisk(file.path).pipe(
-          Effect.catchAll((error) =>
-            Console.error(`Failed to read ${file.path}: ${error.message}`).pipe(
-              Effect.as(null)
-            )
-          )
-        );
-
-        if (newVars && fileChangeCallback) {
-          // Notify the App component
-          fileChangeCallback(fileIndex, newVars);
-        }
-      })
-    ).pipe(
-      Effect.catchAll((error) =>
-        Console.error(`File watcher error: ${String(error)}`)
-      ),
-      Effect.fork
-    );
-
-    // Effect.never keeps the fiber alive so the file watcher and TUI continue running
-    return yield* Effect.never;
+    // Render the TUI and wait for quit
+    yield* renderApp(envFiles, shutdownSignal, registry);
   })
 ).pipe(
   Command.withDescription("Compare and sync environment files side-by-side")
@@ -220,6 +229,7 @@ const MainLive = ServicesLive.pipe(Layer.provideMerge(BunContext.layer));
 
 // Run with proper error handling
 const program = cli(process.argv).pipe(
+  Effect.scoped,
   Effect.provide(MainLive),
   Effect.catchIf(ValidationError.isValidationError, () =>
     Effect.gen(function* () {

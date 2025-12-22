@@ -45,3 +45,6 @@ export type { UseDeleteActions } from "./useDeleteActions.js";
 
 export { useUndoActions } from "./useUndoActions.js";
 export type { UseUndoActions } from "./useUndoActions.js";
+
+// File watcher hook for PubSub integration
+export { useFileWatcher } from "./useFileWatcher.js";

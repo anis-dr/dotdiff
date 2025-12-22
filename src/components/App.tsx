@@ -1,10 +1,10 @@
 /**
  * App component - main TUI with unified state management
  */
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useTerminalDimensions } from "@opentui/react";
 import { useAtomValue, useAtomSet } from "@effect-atom/atom-react";
-import type { EnvFile, PendingChange } from "../types.js";
+import type { EnvFile } from "../types.js";
 import { Colors } from "../types.js";
 import {
   currentRowAtom,
@@ -30,6 +30,7 @@ import {
   useEditActions,
   useDeleteActions,
   useUndoActions,
+  useFileWatcher,
 } from "../hooks/index.js";
 import { Header } from "./Header.js";
 import { EnvRow } from "./EnvRow.js";
@@ -40,17 +41,12 @@ import { SavePreviewModal } from "./SavePreviewModal.js";
 import { SearchOverlay } from "./SearchOverlay.js";
 import { Inspector } from "./Inspector.js";
 
-/** Callback type for file change notifications */
-type FileChangeCallback = (fileIndex: number, newVars: ReadonlyMap<string, string>) => void;
-
 interface AppProps {
   readonly initialFiles: ReadonlyArray<EnvFile>;
   readonly onQuit: () => void;
-  /** Register callback to receive file change events from the watcher */
-  readonly onRegisterFileChange?: (cb: FileChangeCallback) => void;
 }
 
-export function App({ initialFiles, onQuit, onRegisterFileChange }: AppProps) {
+export function App({ initialFiles, onQuit }: AppProps) {
   const { width: terminalWidth } = useTerminalDimensions();
 
   // Derived atoms
@@ -62,7 +58,7 @@ export function App({ initialFiles, onQuit, onRegisterFileChange }: AppProps) {
   const rowCount = useAtomValue(rowCountAtom);
 
   // Focused hooks
-  const { files, fileCount, setFiles, updateFileFromDisk } = useFiles();
+  const { files, fileCount, setFiles } = useFiles();
   const { selection, moveUp, moveDown, moveLeft, moveRight, cycleColumn, nextMatch, prevMatch, nextDiff, prevDiff } = useSelection();
   const { search, openSearch, closeSearch, setSearchQuery } = useSearch();
   const { modal, openModal, closeModal } = useModal();
@@ -70,6 +66,9 @@ export function App({ initialFiles, onQuit, onRegisterFileChange }: AppProps) {
   const { showMessage } = useMessage();
   const { setColWidths } = useLayout();
   const { clearChanges } = usePendingChanges();
+
+  // Subscribe to file watcher events via PubSub
+  useFileWatcher();
 
   // Effectful save action from the runtime - use "promise" mode to await result
   const saveChanges = useAtomSet(saveChangesAtom, { mode: "promise" });
@@ -85,24 +84,6 @@ export function App({ initialFiles, onQuit, onRegisterFileChange }: AppProps) {
   useEffect(() => {
     setFiles(initialFiles);
   }, [initialFiles, setFiles]);
-
-  // Keep a ref to the latest files to avoid stale closures in the file watcher callback
-  const filesRef = useRef(files);
-  useEffect(() => {
-    filesRef.current = files;
-  }, [files]);
-
-  // Register callback for file watcher events
-  // Uses filesRef to avoid stale closure over files
-  useEffect(() => {
-    if (onRegisterFileChange) {
-      onRegisterFileChange((fileIndex, newVars) => {
-        updateFileFromDisk(fileIndex, newVars);
-        const filename = filesRef.current[fileIndex]?.filename || 'File';
-        showMessage(`↻ ${filename} updated`);
-      });
-    }
-  }, [onRegisterFileChange, updateFileFromDisk, showMessage]);
 
   // Calculate column widths (2-file optimized layout)
   const colWidths = useMemo(() => {
