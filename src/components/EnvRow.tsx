@@ -7,7 +7,7 @@ import { useAtomValue } from "jotai";
 import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, VariableStatus } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";
-import { truncate } from "../utils/index.js";
+import { truncate, formatDisplayValue } from "../utils/index.js";
 import { appStateAtom, pendingKey } from "../state/appState.js";
 
 interface EnvRowProps {
@@ -151,18 +151,11 @@ export function EnvRow({
           const hasConflict = conflicts.has(pendingKey(row.key, fileIndex));
           const width = colWidths[fileIndex + 1] ?? 20;
 
-          const displayValue = value === null ? "—" : value === "" ? '""' : value;
-          const pendingValue = pendingChange?.newValue;
-
           const maxLen = width - 2;
-          const truncatedValue = truncate(displayValue, maxLen);
+          const truncatedValue = truncate(formatDisplayValue(value), maxLen);
           const truncatedPending =
-            pendingValue !== undefined
-              ? pendingValue === null
-                ? "—"
-                : pendingValue === ""
-                  ? '""'
-                  : truncate(pendingValue, maxLen)
+            pendingChange !== undefined
+              ? truncate(formatDisplayValue(pendingChange.newValue), maxLen)
               : undefined;
 
           return (

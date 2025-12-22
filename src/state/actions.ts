@@ -4,7 +4,7 @@
  * All functions are pure: (state, ...args) => newState
  * No side effects, no I/O - just state transformations.
  */
-import type { Clipboard, DiffRow, EditMode, EnvFile, ModalState, PendingChange, SearchState } from "../types.js";
+import type { Clipboard, EditMode, EnvFile, ModalState, PendingChange } from "../types.js";
 import type { AppState } from "./appState.js";
 import { pendingKey } from "./appState.js";
 
@@ -17,31 +17,6 @@ export const setFiles = (state: AppState, files: ReadonlyArray<EnvFile>): AppSta
   ...state,
   files,
 });
-
-/** Update files after save (applies pending changes to ground truth) */
-export const applyPendingToFiles = (state: AppState): AppState => {
-  const newFiles = state.files.map((file, fileIndex) => {
-    const newVariables = new Map(file.variables);
-
-    for (const [, change] of state.pending) {
-      if (change.fileIndex !== fileIndex) continue;
-
-      if (change.newValue === null) {
-        newVariables.delete(change.key);
-      } else {
-        newVariables.set(change.key, change.newValue);
-      }
-    }
-
-    return { ...file, variables: newVariables };
-  });
-
-  return {
-    ...state,
-    files: newFiles,
-    pending: new Map(), // Clear pending after applying
-  };
-};
 
 // =============================================================================
 // Pending Changes
@@ -253,12 +228,6 @@ export const setClipboard = (state: AppState, clipboard: Clipboard): AppState =>
   clipboard,
 });
 
-/** Clear clipboard */
-export const clearClipboard = (state: AppState): AppState => ({
-  ...state,
-  clipboard: null,
-});
-
 // =============================================================================
 // Search
 // =============================================================================
@@ -321,27 +290,8 @@ export const setColWidths = (
 });
 
 // =============================================================================
-// Composite Actions
+// Value Helpers
 // =============================================================================
-
-/**
- * Get effective value for a cell (original + pending overlay)
- */
-export const getEffectiveValue = (
-  state: AppState,
-  varKey: string,
-  fileIndex: number
-): string | null => {
-  const pending = findChange(state, varKey, fileIndex);
-  if (pending !== undefined) {
-    return pending.newValue;
-  }
-
-  const file = state.files[fileIndex];
-  if (!file) return null;
-
-  return file.variables.get(varKey) ?? null;
-};
 
 /**
  * Get original value for a cell (ignores pending)

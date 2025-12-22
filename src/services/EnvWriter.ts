@@ -7,6 +7,7 @@
 import { Context, Effect, Layer } from "effect"
 import { FileSystem } from "@effect/platform"
 import type { EnvFile, PendingChange } from "../types.js"
+import { groupChangesByFile } from "../utils/index.js"
 import { parseEnvLines, patchEnvContent } from "./envFormat.js"
 
 export class EnvWriter extends Context.Tag("EnvWriter")<
@@ -29,13 +30,7 @@ export const EnvWriterLive = Layer.effect(
       changes: ReadonlyArray<PendingChange>
     ): Effect.Effect<ReadonlyArray<EnvFile>, Error> =>
       Effect.gen(function* () {
-        // Group changes by file index
-        const changesByFile = new Map<number, PendingChange[]>()
-        for (const change of changes) {
-          const existing = changesByFile.get(change.fileIndex) ?? []
-          existing.push(change)
-          changesByFile.set(change.fileIndex, existing)
-        }
+        const changesByFile = groupChangesByFile(changes)
         
         // Apply changes to each file using patch-based approach
         const updatedFiles: EnvFile[] = []

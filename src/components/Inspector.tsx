@@ -5,6 +5,7 @@
 import { useAtomValue } from "jotai";
 import type { DiffRow } from "../types.js";
 import { Colors } from "../types.js";
+import { formatDisplayValue } from "../utils/index.js";
 import { appStateAtom, pendingKey } from "../state/appState.js";
 
 interface InspectorProps {
@@ -35,9 +36,6 @@ export function Inspector({ row }: InspectorProps) {
   // Get current disk value (from files state, which is updated by file watcher)
   const diskValue: string | null = selectedFile?.variables.get(row.key) ?? null;
   const selectedValue: string | null = row.values[selectedCol] ?? null;
-
-  const formatValue = (v: string | null): string =>
-    v === null ? "—" : v === "" ? '""' : v;
 
   // Need more height when showing conflict (3 lines: old, disk, pending)
   const inspectorHeight = hasConflict ? 4 : 3;
@@ -74,21 +72,21 @@ export function Inspector({ row }: InspectorProps) {
               <text>
                 <span fg={Colors.dimText}>Old: </span>
                 <span fg={Colors.secondaryText}>
-                  {formatValue(selectedPending.oldValue)}
+                  {formatDisplayValue(selectedPending.oldValue)}
                 </span>
                 <span fg={Colors.missing}> (stale)</span>
               </text>
               <text>
                 <span fg={Colors.dimText}>Disk: </span>
                 <span fg={Colors.missing}>
-                  {formatValue(diskValue)}
+                  {formatDisplayValue(diskValue)}
                 </span>
                 <span fg={Colors.missing}> ⚠ changed externally</span>
               </text>
               <text>
                 <span fg={Colors.dimText}>Pending: </span>
                 <span fg={Colors.pendingChange}>
-                  {formatValue(selectedPending.newValue)}
+                  {formatDisplayValue(selectedPending.newValue)}
                 </span>
               </text>
             </>
@@ -97,13 +95,13 @@ export function Inspector({ row }: InspectorProps) {
               <text>
                 <span fg={Colors.dimText}>Old: </span>
                 <span fg={Colors.secondaryText}>
-                  {formatValue(selectedPending.oldValue)}
+                  {formatDisplayValue(selectedPending.oldValue)}
                 </span>
               </text>
               <text>
                 <span fg={Colors.dimText}>New: </span>
                 <span fg={Colors.pendingChange}>
-                  {formatValue(selectedPending.newValue)}
+                  {formatDisplayValue(selectedPending.newValue)}
                 </span>
                 {selectedPending.newValue === null && (
                   <span fg={Colors.missing}> (deleted)</span>
@@ -116,7 +114,7 @@ export function Inspector({ row }: InspectorProps) {
         <text>
           <span fg={Colors.dimText}>Value: </span>
           <span fg={selectedValue === null ? Colors.missing : Colors.primaryText}>
-            {formatValue(selectedValue)}
+            {formatDisplayValue(selectedValue)}
           </span>
         </text>
       )}

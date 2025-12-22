@@ -7,7 +7,7 @@ import { FileSystem } from "@effect/platform";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
-import { Console, Effect, Layer, Stream, Fiber, Runtime } from "effect";
+import { Console, Effect, Layer, Stream } from "effect";
 import { App } from "./components/index.js";
 import {
   EnvDiffer,
@@ -18,7 +18,6 @@ import {
   EnvWriterLive,
   FileWatcher,
   FileWatcherLive,
-  type FileChangeEvent,
 } from "./services/index.js";
 import { readFileFromDisk, findFileIndex } from "./state/fileSync.js";
 import type { EnvFile, PendingChange } from "./types.js";
@@ -142,7 +141,6 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
     const writer = yield* EnvWriter;
     const watcher = yield* FileWatcher;
     const fs = yield* FileSystem.FileSystem;
-    const runtime = yield* Effect.runtime<FileSystem.FileSystem>();
 
     // Parse all env files
     yield* Console.log(`Loading ${files.length} env files...`);

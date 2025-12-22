@@ -23,7 +23,6 @@ export interface KeyBindingActions {
   readonly deleteAll: () => void;
   readonly quit: () => void;
   readonly cancelEdit: () => void;
-  // New actions
   readonly openSearch: () => void;
   readonly closeSearch: () => void;
   readonly nextMatch: () => void;
@@ -134,7 +133,6 @@ export function useKeyBindings(
       case "q":
         actions.quit();
         break;
-      // New keybindings
       case "/":
         actions.openSearch();
         break;

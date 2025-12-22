@@ -11,3 +11,10 @@ export const TRUNCATE_CLIPBOARD = 30;
 export const truncate = (str: string, maxLen: number): string =>
   str.length > maxLen ? str.slice(0, maxLen - 1) + "…" : str;
 
+/**
+ * Format a value for display in the UI
+ * Handles null (missing), empty string, and regular values
+ */
+export const formatDisplayValue = (value: string | null): string =>
+  value === null ? "—" : value === "" ? '""' : value;
+

@@ -4,7 +4,7 @@
  * This is the main interface for components to interact with state.
  * All state reads and writes go through this hook.
  */
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useMemo } from "react";
 import type { Clipboard, DiffRow, EditMode, EnvFile, ModalState, PendingChange } from "../types.js";
 import {

@@ -4,7 +4,7 @@
 import type { EnvFile, PendingChange } from "../types.js";
 import { Colors } from "../types.js";
 import { Modal } from "./Modal.js";
-import { truncate } from "../utils/index.js";
+import { truncate, groupChangesByFile } from "../utils/index.js";
 
 interface SavePreviewModalProps {
   readonly files: ReadonlyArray<EnvFile>;
@@ -19,13 +19,7 @@ export function SavePreviewModal({
   onConfirm,
   onCancel,
 }: SavePreviewModalProps) {
-  // Group changes by file
-  const changesByFile = new Map<number, PendingChange[]>();
-  for (const change of changes) {
-    const existing = changesByFile.get(change.fileIndex) ?? [];
-    existing.push(change);
-    changesByFile.set(change.fileIndex, existing);
-  }
+  const changesByFile = groupChangesByFile(changes);
 
   return (
     <Modal
