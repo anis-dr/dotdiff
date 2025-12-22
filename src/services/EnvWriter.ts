@@ -1,10 +1,13 @@
 /**
  * EnvWriter service - writes changes back to .env files
+ *
+ * Uses patch-based approach to preserve comments, blank lines, and ordering.
+ * Only lines with changed keys are modified; everything else is preserved byte-for-byte.
  */
 import { Context, Effect, Layer } from "effect"
 import { FileSystem } from "@effect/platform"
 import type { EnvFile, PendingChange } from "../types.js"
-import { sortKeys } from "../utils/index.js"
+import { parseEnvLines, patchEnvContent } from "./envFormat.js"
 
 export class EnvWriter extends Context.Tag("EnvWriter")<
   EnvWriter,
@@ -15,28 +18,6 @@ export class EnvWriter extends Context.Tag("EnvWriter")<
     ) => Effect.Effect<ReadonlyArray<EnvFile>, Error>
   }
 >() {}
-
-/**
- * Serialize a Map of variables back to .env format
- */
-const serializeEnv = (variables: ReadonlyMap<string, string>): string => {
-  const lines: string[] = []
-  
-  // Sort keys for consistent output
-  const sortedKeys = sortKeys(variables.keys())
-  
-  for (const key of sortedKeys) {
-    const value = variables.get(key)
-    if (value !== undefined) {
-      // Quote values that contain spaces, #, or special characters
-      const needsQuotes = /[\s#"'\\]/.test(value) || value === ""
-      const escapedValue = needsQuotes ? `"${value.replace(/"/g, '\\"')}"` : value
-      lines.push(`${key}=${escapedValue}`)
-    }
-  }
-  
-  return lines.join("\n") + "\n"
-}
 
 export const EnvWriterLive = Layer.effect(
   EnvWriter,
@@ -56,7 +37,7 @@ export const EnvWriterLive = Layer.effect(
           changesByFile.set(change.fileIndex, existing)
         }
         
-        // Apply changes to each file
+        // Apply changes to each file using patch-based approach
         const updatedFiles: EnvFile[] = []
         
         for (let i = 0; i < files.length; i++) {
@@ -64,24 +45,53 @@ export const EnvWriterLive = Layer.effect(
           const fileChanges = changesByFile.get(i)
           
           if (fileChanges && fileChanges.length > 0) {
-            // Create mutable copy of variables
-            const newVariables = new Map(file.variables)
-            
-            for (const change of fileChanges) {
-              if (change.newValue === null) {
-                // Deletion: remove the key
-                newVariables.delete(change.key)
-              } else {
-                // Addition or modification: set the value
-                newVariables.set(change.key, change.newValue)
+            // Read original file content
+            const originalContent = yield* fs.readFileString(file.path).pipe(
+              Effect.mapError((e) => new Error(`Failed to read file ${file.path}: ${e.message}`))
+            )
+
+            // Determine which keys already exist in this file based on actual content
+            const existingKeys = new Set<string>()
+            for (const line of parseEnvLines(originalContent)) {
+              if (line.type === "assignment" && line.key) {
+                existingKeys.add(line.key)
               }
             }
             
-            // Write to disk
-            const content = serializeEnv(newVariables)
-            yield* fs.writeFileString(file.path, content).pipe(
+            // Separate changes into modifications/deletions and additions
+            const modifications = new Map<string, string | null>()
+            const additions = new Map<string, string>()
+            
+            for (const change of fileChanges) {
+              if (change.newValue === null) {
+                // Deletion
+                modifications.set(change.key, null)
+              } else if (!existingKeys.has(change.key)) {
+                // Key doesn't exist in this file yet: add at end (even if empty string)
+                additions.set(change.key, change.newValue)
+              } else {
+                // Modification
+                modifications.set(change.key, change.newValue)
+              }
+            }
+            
+            // Apply changes using patch-based approach (preserves comments/order)
+            const newContent = patchEnvContent(originalContent, modifications, additions)
+            
+            // Write patched content back to disk
+            yield* fs.writeFileString(file.path, newContent).pipe(
               Effect.mapError((e) => new Error(`Failed to write file ${file.path}: ${e.message}`))
             )
+            
+            // Update in-memory variables map
+            const newVariables = new Map(file.variables)
+            for (const change of fileChanges) {
+              if (change.newValue === null) {
+                newVariables.delete(change.key)
+              } else {
+                newVariables.set(change.key, change.newValue)
+              }
+            }
             
             updatedFiles.push({
               ...file,

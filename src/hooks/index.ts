@@ -16,3 +16,6 @@ export type { UseEditModeReturn } from "./useEditMode.js";
 export { useKeyBindings } from "./useKeyBindings.js";
 export type { KeyBindingActions } from "./useKeyBindings.js";
 
+export { useSearch } from "./useSearch.js";
+export type { UseSearchReturn } from "./useSearch.js";
+

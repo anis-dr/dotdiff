@@ -76,24 +76,22 @@ export function Footer() {
         paddingRight={1}
       >
         <text>
-          <span fg={Colors.secondaryText}>↑↓←→</span>
+          <span fg={Colors.secondaryText}>↑↓</span>
           <span fg={Colors.dimText}> nav </span>
+          <span fg={Colors.selectedBg}>/</span>
+          <span fg={Colors.dimText}> search </span>
+          <span fg={Colors.different}>][</span>
+          <span fg={Colors.dimText}> diff </span>
           <span fg={Colors.selectedBg}>e</span>
           <span fg={Colors.dimText}> edit </span>
-          <span fg={Colors.identical}>a</span>
-          <span fg={Colors.dimText}> add </span>
-          <span fg={Colors.missing}>d</span>
-          <span fg={Colors.dimText}> del </span>
-          <span fg={Colors.different}>c</span>
-          <span fg={Colors.dimText}> copy </span>
-          <span fg={Colors.different}>v</span>
-          <span fg={Colors.dimText}> paste </span>
-          <span fg={Colors.pendingChange}>u</span>
-          <span fg={Colors.dimText}> undo </span>
-          <span fg={Colors.selectedBg}>s</span>
+          <span fg={Colors.different}>&lt;&gt;</span>
+          <span fg={Colors.dimText}> sync </span>
+          <span fg={Colors.pendingChange}>s</span>
           <span fg={Colors.dimText}> save </span>
           <span fg={Colors.missing}>q</span>
-          <span fg={Colors.dimText}> quit</span>
+          <span fg={Colors.dimText}> quit </span>
+          <span fg={Colors.secondaryText}>?</span>
+          <span fg={Colors.dimText}> help</span>
         </text>
       </box>
     </box>

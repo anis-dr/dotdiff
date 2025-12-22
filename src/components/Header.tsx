@@ -1,5 +1,6 @@
 /**
- * Header component - displays file names and variable counts
+ * Header component - displays key column header and file names with counts
+ * Layout: [Key] | [File A] | [File B]
  */
 import { useAtomValue } from "jotai";
 import { Colors } from "../types.js";
@@ -10,28 +11,45 @@ export function Header() {
   const selectedCol = useAtomValue(selectedColAtom);
   const colWidths = useAtomValue(colWidthsAtom);
 
+  const keyColWidth = colWidths[0] ?? 20;
+
   return (
     <box flexDirection="row" width="100%">
+      {/* Key column header */}
+      <box
+        width={keyColWidth}
+        height={1}
+        backgroundColor={Colors.headerBg}
+        paddingLeft={1}
+        paddingRight={1}
+      >
+        <text>
+          <b>
+            <span fg={Colors.primaryText}>Key</span>
+          </b>
+        </text>
+      </box>
+
+      {/* File column headers */}
       {files.map((file, index) => {
         const isSelected = index === selectedCol;
         const varCount = file.variables.size;
-        const width = colWidths[index] ?? 20;
+        const width = colWidths[index + 1] ?? 20; // +1 because colWidths[0] is key col
 
         return (
           <box
             key={file.path}
-            width={width + (index > 0 ? 1 : 0)}
-            height={3}
+            width={width + 1} // +1 for separator
+            height={1}
             flexDirection="row"
           >
-            {index > 0 && <box width={1} backgroundColor={Colors.border} />}
+            <box width={1} backgroundColor={Colors.border} />
             <box
               width={width}
-              height={3}
+              height={1}
               backgroundColor={isSelected ? Colors.selectedBg : Colors.headerBg}
               paddingLeft={1}
               paddingRight={1}
-              justifyContent="center"
             >
               <text>
                 <b>

@@ -38,7 +38,23 @@ export interface PendingChange {
 export interface EditMode {
   readonly phase: "editValue" | "addKey";
   readonly inputValue: string;
+  readonly dirty?: boolean; // true if user actually typed/changed input during this edit session
   readonly isNewRow?: boolean; // true when editing a newly added row's key
+}
+
+/** Search state */
+export interface SearchState {
+  readonly active: boolean;
+  readonly query: string;
+}
+
+/** Modal types */
+export type ModalType = "quit" | "save" | "help";
+
+/** Modal state */
+export interface ModalState {
+  readonly type: ModalType;
+  readonly data?: unknown; // Optional data for the modal (e.g., save preview)
 }
 
 /** Application state */

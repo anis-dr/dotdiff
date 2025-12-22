@@ -1,5 +1,6 @@
 /**
  * EnvRow component - displays a single variable row with status and inline editing
+ * Layout: [Key/Status column] | [File A value] | [File B value]
  */
 import { useCallback, useRef } from "react";
 import { useAtom, useAtomValue } from "jotai";
@@ -70,9 +71,14 @@ export function EnvRow({
   const icon = statusIcon[effectiveStatus];
   const color = statusColor[effectiveStatus];
 
+  // Has any pending change for this row?
+  const hasAnyPending = pendingByFile.size > 0;
+
   const handlePaste = useCallback((e: { text: string }) => {
     inputRef.current?.insertText(e.text);
   }, []);
+
+  const keyColWidth = colWidths[0] ?? 20;
 
   return (
     <box flexDirection="column" width="100%">
@@ -85,33 +91,85 @@ export function EnvRow({
           isSelectedRow ? Colors.selectedRowBg : Colors.background
         }
       >
+        {/* Key/Status column (fixed left) */}
+        <box
+          width={keyColWidth}
+          paddingLeft={1}
+          paddingRight={1}
+          backgroundColor={isSelectedRow ? Colors.selectedRowBg : Colors.background}
+        >
+          {isEditingKey ? (
+            <box flexDirection="row">
+              <text>
+                <span fg={Colors.selectedText}>{icon} </span>
+              </text>
+              <input
+                ref={inputRef}
+                focused
+                value={editMode.inputValue}
+                onInput={onEditInput}
+                onSubmit={onEditSubmit}
+                onPaste={handlePaste}
+                style={{ width: keyColWidth - 4 }}
+              />
+            </box>
+          ) : (
+            <text>
+              <span fg={color}>
+                {icon}{" "}
+              </span>
+              {isSelectedRow ? (
+                <b>
+                  <span fg={Colors.primaryText}>
+                    {truncate(row.key || "(new variable)", keyColWidth - 4)}
+                  </span>
+                </b>
+              ) : (
+                <span fg={Colors.primaryText}>
+                  {truncate(row.key || "(new variable)", keyColWidth - 4)}
+                </span>
+              )}
+              {hasAnyPending && !isEditingKey && (
+                <span fg={Colors.pendingChange}>
+                  {" "}✎
+                </span>
+              )}
+            </text>
+          )}
+        </box>
+
+        {/* Value columns (one per file) */}
         {row.values.map((value, fileIndex) => {
           const isSelectedCell = isSelectedRow && fileIndex === selectedCol;
           const isEditingThisCell = isEditingValue && isSelectedCell;
           const pending = pendingByFile.get(fileIndex);
           const hasPending = pending !== undefined;
-          const width = colWidths[fileIndex] ?? 20;
+          const width = colWidths[fileIndex + 1] ?? 20; // +1 because colWidths[0] is key col
 
-          const displayValue = value ?? "—";
+          const displayValue =
+            value === null ? "—" : value === "" ? "\"\"" : value;
           const pendingValue = pending?.newValue;
 
           // Truncate based on actual cell width (minus padding)
           const maxLen = width - 2;
           const truncatedValue = truncate(displayValue, maxLen);
-          const truncatedPending = pendingValue
-            ? truncate(pendingValue, maxLen)
-            : undefined;
+          const truncatedPending =
+            pendingValue !== undefined
+              ? pendingValue === null
+                ? "—"
+                : pendingValue === ""
+                  ? "\"\""
+                  : truncate(pendingValue, maxLen)
+              : undefined;
 
           return (
             <box
               key={fileIndex}
-              width={width + (fileIndex > 0 ? 1 : 0)}
+              width={width + 1} // +1 for separator
               flexDirection="row"
             >
               {/* Separator */}
-              {fileIndex > 0 && (
-                <box width={1} backgroundColor={Colors.border} />
-              )}
+              <box width={1} backgroundColor={Colors.border} />
               <box
                 width={width}
                 paddingLeft={1}
@@ -121,56 +179,8 @@ export function EnvRow({
                   : hasPending
                     ? { backgroundColor: Colors.pendingChangeBg }
                     : {})}
-                flexDirection="column"
               >
-                {/* Key line - show input when adding new key */}
-                {isEditingKey && isSelectedCell ? (
-                  <box flexDirection="row">
-                    <text>
-                      <span fg={Colors.selectedText}>{icon} </span>
-                    </text>
-                    <input
-                      ref={inputRef}
-                      focused
-                      value={editMode.inputValue}
-                      onInput={onEditInput}
-                      onSubmit={onEditSubmit}
-                      onPaste={handlePaste}
-                      style={{ width: width - 4 }}
-                    />
-                  </box>
-                ) : (
-                  <text>
-                    <span fg={isSelectedCell ? Colors.selectedText : color}>
-                      {icon}{" "}
-                    </span>
-                    {isSelectedCell ? (
-                      <b>
-                        <span fg={Colors.selectedText}>
-                          {row.key || "(new variable)"}
-                        </span>
-                      </b>
-                    ) : (
-                      <span fg={Colors.primaryText}>
-                        {row.key || "(new variable)"}
-                      </span>
-                    )}
-                    {hasPending && !isEditingThisCell && (
-                      <span
-                        fg={
-                          isSelectedCell
-                            ? Colors.selectedText
-                            : Colors.pendingChange
-                        }
-                      >
-                        {" "}
-                        ✎
-                      </span>
-                    )}
-                  </text>
-                )}
-
-                {/* Value line - show input when editing this cell */}
+                {/* Value - show input when editing this cell */}
                 {isEditingThisCell ? (
                   <input
                     ref={inputRef}
@@ -191,7 +201,7 @@ export function EnvRow({
                             : Colors.pendingChange
                         }
                       >
-                        {truncatedPending ?? "—"}
+                        {truncatedPending}
                       </span>
                     ) : (
                       <span

@@ -4,7 +4,9 @@ import type {
   DiffRow,
   EditMode,
   EnvFile,
+  ModalState,
   PendingChange,
+  SearchState,
 } from "../types";
 
 // =============================================================================
@@ -50,3 +52,35 @@ export const messageAtom = atom<string | null>(null);
 // =============================================================================
 
 export const colWidthsAtom = atom<ReadonlyArray<number>>([]);
+
+// =============================================================================
+// Search State
+// =============================================================================
+
+export const searchStateAtom = atom<SearchState>({
+  active: false,
+  query: "",
+});
+
+// Derived atom: filtered row indices based on search query
+export const filteredRowIndicesAtom = atom((get) => {
+  const diffRows = get(diffRowsAtom);
+  const search = get(searchStateAtom);
+
+  if (!search.active || search.query === "") {
+    // Return all indices
+    return diffRows.map((_, i) => i);
+  }
+
+  const lowerQuery = search.query.toLowerCase();
+  return diffRows
+    .map((row, i) => ({ row, i }))
+    .filter(({ row }) => row.key.toLowerCase().includes(lowerQuery))
+    .map(({ i }) => i);
+});
+
+// =============================================================================
+// Modal State
+// =============================================================================
+
+export const modalStateAtom = atom<ModalState | null>(null);

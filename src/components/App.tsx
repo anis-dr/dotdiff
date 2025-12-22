@@ -4,13 +4,14 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useTerminalDimensions } from "@opentui/react";
-import type { DiffRow, EnvFile, PendingChange } from "../types.js";
+import type { DiffRow, EnvFile, ModalState, PendingChange } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";
 import {
   colWidthsAtom,
   diffRowsAtom,
   filesAtom,
   messageAtom,
+  modalStateAtom,
 } from "../state/atoms.js";
 import {
   usePendingChanges,
@@ -19,15 +20,23 @@ import {
   useClipboard,
   useEditMode,
   useKeyBindings,
+  useSearch,
 } from "../hooks/index.js";
 import { Header } from "./Header.js";
 import { EnvRow } from "./EnvRow.js";
 import { Footer } from "./Footer.js";
+import { HelpOverlay } from "./HelpOverlay.js";
+import { QuitConfirmModal } from "./QuitConfirmModal.js";
+import { SavePreviewModal } from "./SavePreviewModal.js";
+import { SearchOverlay } from "./SearchOverlay.js";
+import { Inspector } from "./Inspector.js";
 
 interface AppProps {
   readonly initialFiles: ReadonlyArray<EnvFile>;
   readonly initialDiffRows: ReadonlyArray<DiffRow>;
-  readonly onSave: (changes: ReadonlyArray<PendingChange>) => void;
+  readonly onSave: (
+    changes: ReadonlyArray<PendingChange>
+  ) => Promise<ReadonlyArray<EnvFile>>;
   readonly onQuit: () => void;
 }
 
@@ -62,23 +71,48 @@ export function App({
   const editModeHook = useEditMode(pendingChangesHook);
   const { editMode, handleEditInput, cancelEdit } = editModeHook;
 
+  // Search state
+  const searchHook = useSearch();
+  const {
+    isSearchActive,
+    searchQuery,
+    matchCount,
+    openSearch,
+    closeSearch,
+    setSearchQuery,
+    nextMatch,
+    prevMatch,
+    nextDiff,
+    prevDiff,
+  } = searchHook;
+
+  // Modal state
+  const [modalState, setModalState] = useAtom(modalStateAtom);
+
   // Initialize atoms from props on mount
   useEffect(() => {
     setFiles(initialFiles);
     setDiffRows(initialDiffRows);
   }, [initialFiles, initialDiffRows, setFiles, setDiffRows]);
 
-  // Calculate and set column widths
+  // Calculate and set column widths (2-file optimized layout)
+  // Layout: [Key column] | [File A value] | [File B value]
   const colWidths = useMemo(() => {
-    const separators = Math.max(0, fileCount - 1);
+    // Key column takes ~35% of width, value columns split the rest
+    const separators = 2; // Two separators: key|valA|valB
     const available = Math.max(0, terminalWidth - separators);
-    const base = Math.max(10, Math.floor(available / Math.max(1, fileCount)));
-    const used = base * Math.max(1, fileCount);
+    const keyColWidth = Math.max(20, Math.floor(available * 0.35));
+    const valueWidth = Math.max(15, Math.floor((available - keyColWidth) / Math.max(1, fileCount)));
+    const used = keyColWidth + valueWidth * fileCount;
     const remainder = Math.max(0, available - used);
 
-    return Array.from({ length: fileCount }, (_, i) =>
-      i === fileCount - 1 ? base + remainder : base
-    );
+    // Return [keyColWidth, ...valueWidths] - last value col gets remainder
+    return [
+      keyColWidth,
+      ...Array.from({ length: fileCount }, (_, i) =>
+        i === fileCount - 1 ? valueWidth + remainder : valueWidth
+      ),
+    ];
   }, [terminalWidth, fileCount]);
 
   useEffect(() => {
@@ -160,20 +194,33 @@ export function App({
 
   const handleDeleteVariable = useCallback(() => {
     if (!currentRow) return;
-    const currentValue = currentRow.values[selectedCol] ?? null;
-    if (currentValue === null) {
+    const originalValue = currentRow.values[selectedCol] ?? null;
+    const pending = findChange(currentRow.key, selectedCol);
+    const effectiveValue = pending ? pending.newValue : originalValue;
+
+    // If it's already missing (and no pending value), nothing to delete
+    if (effectiveValue === null) {
       showMessage("⚠ Already missing in this file");
       return;
     }
 
+    // If the value only exists due to a pending change and original was missing,
+    // deleting should just revert the pending change.
+    if (originalValue === null) {
+      removeChange(currentRow.key, selectedCol);
+      showMessage("↩ Reverted to missing");
+      return;
+    }
+
+    // Otherwise mark for deletion
     upsertChange({
       key: currentRow.key,
       fileIndex: selectedCol,
-      oldValue: currentValue,
+      oldValue: originalValue,
       newValue: null,
     });
     showMessage(`✗ Marked ${currentRow.key} for deletion`);
-  }, [currentRow, selectedCol, upsertChange, showMessage]);
+  }, [currentRow, selectedCol, findChange, removeChange, upsertChange, showMessage]);
 
   const handleDeleteAll = useCallback(() => {
     if (!currentRow) return;
@@ -191,56 +238,141 @@ export function App({
       }
     }
 
+    // If there are no original values to delete, we may still need to revert
+    // pending values that were added to previously-missing files.
     if (newChanges.length === 0) {
-      showMessage("⚠ Already missing in all files");
+      const hadPendingForKey = pendingChanges.some((c) => c.key === currentRow.key);
+      if (hadPendingForKey) {
+        removeChangesForKey(currentRow.key);
+        showMessage("↩ Reverted pending values (now missing everywhere)");
+      } else {
+        showMessage("⚠ Already missing in all files");
+      }
       return;
     }
 
+    // Remove existing changes for this key (including pending adds), then apply deletions
     removeChangesForKey(currentRow.key);
     addChanges(newChanges);
     showMessage(
       `✗ Marked ${currentRow.key} for deletion in ${newChanges.length} files`
     );
-  }, [currentRow, fileCount, removeChangesForKey, addChanges, showMessage]);
+  }, [currentRow, fileCount, pendingChanges, removeChangesForKey, addChanges, showMessage]);
 
+  // Open save preview modal
   const handleSave = useCallback(() => {
     if (pendingChanges.length === 0) {
       showMessage("⚠ No changes to save");
       return;
     }
+    setModalState({ type: "save" });
+  }, [pendingChanges.length, showMessage, setModalState]);
 
-    onSave(pendingChanges);
+  // Actually perform the save
+  const doSave = useCallback(async () => {
+    try {
+      const updatedFiles = await onSave(pendingChanges);
+      setFiles(updatedFiles);
 
-    setDiffRows((rows) => {
-      const newRows = rows.map((row) => {
-        const rowChanges = pendingChanges.filter((c) => c.key === row.key);
-        if (rowChanges.length === 0) return row;
+      setDiffRows((rows) => {
+        const newRows = rows.map((row) => {
+          const rowChanges = pendingChanges.filter((c) => c.key === row.key);
+          if (rowChanges.length === 0) return row;
 
-        const newValues = [...row.values];
-        for (const change of rowChanges) {
-          newValues[change.fileIndex] = change.newValue;
-        }
+          const newValues = [...row.values];
+          for (const change of rowChanges) {
+            newValues[change.fileIndex] = change.newValue;
+          }
 
-        const status = getVariableStatus(newValues);
-        return { ...row, values: newValues, status };
+          const status = getVariableStatus(newValues);
+          return { ...row, values: newValues, status };
+        });
+
+        return newRows.filter((row) => row.values.some((v) => v !== null));
       });
 
-      return newRows.filter((row) => row.values.some((v) => v !== null));
-    });
+      clearChanges();
+      setModalState(null);
+      showMessage("💾 Saved!");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showMessage(`⚠ Save failed: ${msg}`);
+    }
+  }, [
+    pendingChanges,
+    onSave,
+    setFiles,
+    setDiffRows,
+    clearChanges,
+    setModalState,
+    showMessage,
+  ]);
 
-    clearChanges();
-    showMessage("💾 Saved!");
-  }, [pendingChanges, onSave, setDiffRows, clearChanges, showMessage]);
-
+  // Open quit confirmation modal if dirty, otherwise quit
   const handleQuit = useCallback(() => {
     if (pendingChanges.length > 0) {
-      showMessage("⚠ Unsaved changes! Press q again");
+      setModalState({ type: "quit" });
+    } else {
+      onQuit();
     }
-    onQuit();
-  }, [pendingChanges.length, onQuit, showMessage]);
+  }, [pendingChanges.length, setModalState, onQuit]);
+
+  // Open help modal
+  const handleHelp = useCallback(() => {
+    setModalState({ type: "help" });
+  }, [setModalState]);
+
+  // Close modal
+  const closeModal = useCallback(() => {
+    setModalState(null);
+  }, [setModalState]);
+
+  // Directional sync: copy left value to right
+  const handleSyncToRight = useCallback(() => {
+    if (!currentRow || fileCount !== 2) return;
+    const leftValue = currentRow.values[0] ?? null;
+    if (leftValue === null) {
+      showMessage("⚠ Left value is missing");
+      return;
+    }
+    const rightValue = currentRow.values[1] ?? null;
+    if (leftValue === rightValue) {
+      showMessage("⚠ Values already match");
+      return;
+    }
+    upsertChange({
+      key: currentRow.key,
+      fileIndex: 1,
+      oldValue: rightValue,
+      newValue: leftValue,
+    });
+    showMessage("→ Synced to right");
+  }, [currentRow, fileCount, upsertChange, showMessage]);
+
+  // Directional sync: copy right value to left
+  const handleSyncToLeft = useCallback(() => {
+    if (!currentRow || fileCount !== 2) return;
+    const rightValue = currentRow.values[1] ?? null;
+    if (rightValue === null) {
+      showMessage("⚠ Right value is missing");
+      return;
+    }
+    const leftValue = currentRow.values[0] ?? null;
+    if (rightValue === leftValue) {
+      showMessage("⚠ Values already match");
+      return;
+    }
+    upsertChange({
+      key: currentRow.key,
+      fileIndex: 0,
+      oldValue: leftValue,
+      newValue: rightValue,
+    });
+    showMessage("← Synced to left");
+  }, [currentRow, fileCount, upsertChange, showMessage]);
 
   // Keyboard bindings
-  useKeyBindings(editMode, {
+  useKeyBindings(editMode, isSearchActive, modalState, {
     ...navigation,
     copy: handleCopy,
     paste: handlePaste,
@@ -255,6 +387,22 @@ export function App({
     deleteAll: handleDeleteAll,
     quit: handleQuit,
     cancelEdit: handleCancelEdit,
+    // New actions
+    openSearch,
+    closeSearch,
+    nextMatch,
+    prevMatch,
+    nextDiff,
+    prevDiff,
+    openHelp: handleHelp,
+    closeModal,
+    confirmModal: () => {
+      if (modalState?.type === "quit") onQuit();
+      else if (modalState?.type === "save") doSave();
+      else closeModal();
+    },
+    syncToLeft: handleSyncToLeft,
+    syncToRight: handleSyncToRight,
   });
 
   // Count stats in single pass
@@ -265,6 +413,20 @@ export function App({
     }
     return counts;
   }, [diffRows]);
+
+  // Handle search input
+  const handleSearchInput = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+    },
+    [setSearchQuery]
+  );
+
+  const handleSearchSubmit = useCallback(() => {
+    // When submitting search, jump to next match and close search input
+    nextMatch();
+    closeSearch();
+  }, [nextMatch, closeSearch]);
 
   return (
     <box
@@ -287,6 +449,13 @@ export function App({
             <span fg={Colors.selectedBg}>envy</span>
           </b>
           <span fg={Colors.dimText}> │ {fileCount} files</span>
+          {isSearchActive && searchQuery && (
+            <>
+              <span fg={Colors.dimText}> │ </span>
+              <span fg={Colors.selectedBg}>/{searchQuery}</span>
+              <span fg={Colors.dimText}> ({matchCount})</span>
+            </>
+          )}
         </text>
         <text>
           <span fg={Colors.identical}>● {statusCounts.identical}</span>
@@ -297,12 +466,24 @@ export function App({
         </text>
       </box>
 
+      {/* Search overlay (when active) */}
+      {isSearchActive && (
+        <SearchOverlay
+          query={searchQuery}
+          matchCount={matchCount}
+          totalCount={rowCount}
+          onInput={handleSearchInput}
+          onSubmit={handleSearchSubmit}
+          onCancel={closeSearch}
+        />
+      )}
+
       {/* Header with file names */}
       <Header />
 
       {/* Main diff view */}
       <box flexDirection="column" flexGrow={1} overflow="hidden">
-        <scrollbox focused={!editMode} style={{ flexGrow: 1 }}>
+        <scrollbox focused={!editMode && !isSearchActive && !modalState} style={{ flexGrow: 1 }}>
           {diffRows.map((row, index) => (
             <EnvRow
               key={row.key || `new-${index}`}
@@ -315,8 +496,29 @@ export function App({
         </scrollbox>
       </box>
 
+      {/* Inspector - shows full values and old->new for selected row */}
+      <Inspector row={currentRow} />
+
       {/* Footer with status and keybindings */}
       <Footer />
+
+      {/* Modals */}
+      {modalState?.type === "help" && <HelpOverlay onClose={closeModal} />}
+      {modalState?.type === "quit" && (
+        <QuitConfirmModal
+          pendingCount={pendingChanges.length}
+          onConfirm={onQuit}
+          onCancel={closeModal}
+        />
+      )}
+      {modalState?.type === "save" && (
+        <SavePreviewModal
+          files={files}
+          changes={pendingChanges}
+          onConfirm={doSave}
+          onCancel={closeModal}
+        />
+      )}
     </box>
   );
 }

@@ -44,6 +44,7 @@ export function useEditMode(
       setEditMode({
         phase: "editValue",
         inputValue: currentValue,
+        dirty: false,
       });
     },
     [selectedCol, findChange, setEditMode]
@@ -66,12 +67,15 @@ export function useEditMode(
       phase: "addKey",
       inputValue: "",
       isNewRow: true,
+      dirty: false,
     });
   }, [files, diffRows.length, setDiffRows, setSelectedRow, setEditMode]);
 
   const handleEditInput = useCallback(
     (value: string) => {
-      setEditMode((prev) => (prev ? { ...prev, inputValue: value } : null));
+      setEditMode((prev) =>
+        prev ? { ...prev, inputValue: value, dirty: true } : null
+      );
     },
     [setEditMode]
   );
@@ -81,9 +85,28 @@ export function useEditMode(
       if (!editMode) return null;
 
       const originalValue = row.values[selectedCol] ?? null;
-      const newValue =
+      const rawValue =
         submittedValue !== undefined ? submittedValue : editMode.inputValue;
       const existingPending = findChange(row.key, selectedCol);
+
+      // If user opened edit and submitted without typing, treat as no-op.
+      // This fixes the \"missing -> empty string\" accidental change case.
+      if (!editMode.dirty) {
+        setEditMode(null);
+        return "⚠ No change";
+      }
+
+      // Normalize edit input:
+      // - blank input => empty string (KEY="") so empty values are representable on disk
+      // - literal \"\" or '' => empty string
+      // - <null> / <unset> => delete/unset (null)
+      const normalized = rawValue.trim();
+      const newValue: string | null =
+        normalized === "<null>" || normalized === "<unset>"
+          ? null
+          : rawValue === "\"\"" || rawValue === "''"
+            ? ""
+            : rawValue;
 
       // If changing back to original value
       if (newValue === originalValue) {

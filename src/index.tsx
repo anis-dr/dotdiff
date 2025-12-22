@@ -17,7 +17,7 @@ import {
   EnvWriter,
   EnvWriterLive,
 } from "./services/index.js";
-import type { EnvFile, PendingChange } from "./types.js";
+import type { DiffRow, EnvFile, PendingChange } from "./types.js";
 
 // CLI arguments: at least 2 .env file paths
 const filesArg = Args.path({ name: "files", exists: "yes" }).pipe(
@@ -41,14 +41,10 @@ const TERMINAL_RESTORE =
  */
 const renderApp = (
   envFiles: ReadonlyArray<EnvFile>,
-  diffRows: Awaited<
-    ReturnType<
-      typeof import("./services/index.js").EnvDiffer.Service["computeDiff"]
-    >
-  > extends Effect.Effect<infer A>
-    ? A
-    : never,
-  saveEffect: (changes: ReadonlyArray<PendingChange>) => Promise<void>
+  diffRows: ReadonlyArray<DiffRow>,
+  saveEffect: (
+    changes: ReadonlyArray<PendingChange>
+  ) => Promise<ReadonlyArray<EnvFile>>
 ) =>
   Effect.promise(async () => {
     const renderer = await createCliRenderer({ exitOnCtrlC: false });
@@ -102,9 +98,11 @@ const renderApp = (
       process.exit(1);
     });
 
-    const handleSave = (changes: ReadonlyArray<PendingChange>) => {
-      saveEffect(changes).catch(console.error);
-    };
+    const handleSave = (changes: ReadonlyArray<PendingChange>) =>
+      saveEffect(changes).catch((e) => {
+        console.error(e);
+        return envFiles;
+      });
 
     createRoot(renderer).render(
       <App
@@ -126,7 +124,7 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
 
     // Parse all env files
     yield* Console.log(`Loading ${files.length} env files...`);
-    const envFiles = yield* parser.parseFiles(files);
+    let envFiles = yield* parser.parseFiles(files);
 
     // Compute diff
     const diffRows = yield* differ.computeDiff(envFiles);
@@ -134,11 +132,14 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
 
     // Create save function that uses the writer service
     const saveEffect = async (changes: ReadonlyArray<PendingChange>) => {
-      await Effect.runPromise(
+      const updated = await Effect.runPromise(
         writer
           .applyChanges(envFiles, changes)
           .pipe(Effect.provideService(FileSystem.FileSystem, fs))
       );
+      // Keep in-memory view consistent for subsequent saves
+      envFiles = updated;
+      return updated;
     };
 
     // Render the TUI
