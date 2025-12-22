@@ -6,6 +6,7 @@ import { Effect, Layer } from "effect";
 import { FileSystem } from "@effect/platform";
 import { BunFileSystem } from "@effect/platform-bun";
 import { EnvParser, EnvParserLive } from "../../src/services/EnvParser.js";
+import { FilePath } from "../../src/types.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -52,7 +53,7 @@ DATABASE_URL=postgres://localhost/db
         })
       );
 
-      expect(result.path).toBe(filePath);
+      expect(result.path).toBe(FilePath.make(filePath));
       expect(result.filename).toBe(".env");
       expect(result.variables.get("API_KEY")).toBe("secret123");
       expect(result.variables.get("DATABASE_URL")).toBe("postgres://localhost/db");

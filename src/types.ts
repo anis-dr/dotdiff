@@ -1,60 +1,100 @@
 /**
  * Shared types for env-differ TUI application
+ * 
+ * Uses Effect Schema for runtime validation and branded types for type safety.
  */
+import { Schema } from "effect";
+
+// =============================================================================
+// Branded Types
+// =============================================================================
+
+/** Branded type for environment variable keys */
+export const EnvKey = Schema.String.pipe(Schema.brand("EnvKey"));
+export type EnvKey = typeof EnvKey.Type;
+
+/** Branded type for file indices (0-based) */
+export const FileIndex = Schema.Int.pipe(
+  Schema.nonNegative(),
+  Schema.brand("FileIndex")
+);
+export type FileIndex = typeof FileIndex.Type;
+
+/** Branded type for file paths */
+export const FilePath = Schema.String.pipe(Schema.brand("FilePath"));
+export type FilePath = typeof FilePath.Type;
+
+// =============================================================================
+// Status Variant
+// =============================================================================
 
 /** Status of a variable across all files */
-export type VariableStatus = "identical" | "different" | "missing";
+export const VariableStatus = Schema.Literal("identical", "different", "missing");
+export type VariableStatus = typeof VariableStatus.Type;
+
+// =============================================================================
+// Domain Models
+// =============================================================================
 
 /** Parsed environment file */
-export interface EnvFile {
-  readonly path: string;
-  readonly filename: string;
-  readonly variables: ReadonlyMap<string, string>;
-}
+export class EnvFile extends Schema.Class<EnvFile>("EnvFile")({
+  path: FilePath,
+  filename: Schema.String,
+  variables: Schema.ReadonlyMap({ key: Schema.String, value: Schema.String }),
+}) {}
 
 /** A single row in the diff view */
-export interface DiffRow {
-  readonly key: string;
-  readonly values: ReadonlyArray<string | null>; // null = missing in that file
-  readonly status: VariableStatus;
-}
+export class DiffRow extends Schema.Class<DiffRow>("DiffRow")({
+  key: Schema.String,
+  values: Schema.Array(Schema.NullOr(Schema.String)),
+  status: VariableStatus,
+}) {}
 
 /** Clipboard state for copy/paste */
-export interface Clipboard {
-  readonly key: string;
-  readonly value: string;
-}
+export class Clipboard extends Schema.Class<Clipboard>("Clipboard")({
+  key: Schema.String,
+  value: Schema.String,
+}) {}
 
 /** A pending change to be applied */
-export interface PendingChange {
-  readonly key: string;
-  readonly fileIndex: number;
-  readonly oldValue: string | null;
-  readonly newValue: string | null; // null = deletion
-}
+export class PendingChange extends Schema.Class<PendingChange>("PendingChange")({
+  key: Schema.String,
+  fileIndex: Schema.Number,
+  oldValue: Schema.NullOr(Schema.String),
+  newValue: Schema.NullOr(Schema.String),
+}) {}
+
+/** Edit mode phase */
+export const EditPhase = Schema.Literal("editValue", "addKey");
+export type EditPhase = typeof EditPhase.Type;
 
 /** Edit mode state */
-export interface EditMode {
-  readonly phase: "editValue" | "addKey";
-  readonly inputValue: string;
-  readonly dirty?: boolean; // true if user actually typed/changed input during this edit session
-  readonly isNewRow?: boolean; // true when editing a newly added row's key
-}
+export class EditMode extends Schema.Class<EditMode>("EditMode")({
+  phase: EditPhase,
+  inputValue: Schema.String,
+  dirty: Schema.optional(Schema.Boolean),
+  isNewRow: Schema.optional(Schema.Boolean),
+}) {}
 
 /** Search state */
-export interface SearchState {
-  readonly active: boolean;
-  readonly query: string;
-}
+export class SearchState extends Schema.Class<SearchState>("SearchState")({
+  active: Schema.Boolean,
+  query: Schema.String,
+}) {}
 
 /** Modal types */
-export type ModalType = "quit" | "save" | "help";
+export const ModalType = Schema.Literal("quit", "save", "help");
+export type ModalType = typeof ModalType.Type;
 
 /** Modal state */
-export interface ModalState {
-  readonly type: ModalType;
-  readonly data?: unknown; // Optional data for the modal (e.g., save preview)
-}
+export class ModalState extends Schema.Class<ModalState>("ModalState")({
+  type: ModalType,
+  data: Schema.optional(Schema.Unknown),
+}) {}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 /** Determine the status of a variable across all files */
 export const getVariableStatus = (values: ReadonlyArray<string | null>): VariableStatus => {
@@ -65,6 +105,10 @@ export const getVariableStatus = (values: ReadonlyArray<string | null>): Variabl
   const firstValue = nonNullValues[0];
   return nonNullValues.every((v) => v === firstValue) ? "identical" : "different";
 };
+
+// =============================================================================
+// UI Constants
+// =============================================================================
 
 /** Colors - Dark theme with amber/orange accents */
 export const Colors = {

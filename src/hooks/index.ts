@@ -1,7 +1,3 @@
-// Composite hook (backward compatible)
-export { useAppState } from "./useAppState.js";
-export type { UseAppState } from "./useAppState.js";
-
 // Keyboard bindings
 export { useKeyBindings } from "./useKeyBindings.js";
 export type { KeyBindingActions } from "./useKeyBindings.js";

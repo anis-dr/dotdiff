@@ -19,7 +19,7 @@ export const readFileFromDisk = (
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const content = yield* fs.readFileString(filePath).pipe(
-      Effect.mapError((e) => new FileReadError({ path: filePath, cause: e }))
+      Effect.mapError((e) => FileReadError.make({ path: filePath, cause: e }))
     );
     return parseEnvToMap(content);
   });

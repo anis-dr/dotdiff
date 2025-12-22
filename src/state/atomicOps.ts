@@ -1,18 +1,15 @@
 /**
  * Atomic operations using Atom.fnSync
  *
- * These operations wrap the pure action functions from actions.ts to provide
- * atomic state updates via effect-atom's FnContext.
- *
- * The pure actions in actions.ts remain the single source of truth for state logic.
- * This file simply bridges them to the atom layer.
+ * Each operation reads only the atoms it needs and inlines the state logic directly.
+ * This avoids the overhead of building a complete AppState snapshot for every operation.
  *
  * Usage in components:
  *   const upsertChange = useAtomSet(upsertChangeOp)
  *   upsertChange({ key: "FOO", fileIndex: 0, oldValue: "bar", newValue: "baz" })
  */
 import { Atom } from "@effect-atom/atom-react";
-import type { PendingChange, EnvFile, Clipboard, ModalState } from "../types.js";
+import type { PendingChange, EnvFile, Clipboard, ModalState, EditMode } from "../types.js";
 import {
   pendingAtom,
   conflictsAtom,
@@ -29,26 +26,7 @@ import {
   effectiveDiffRowsAtom,
   filteredRowIndicesAtom,
   pendingKey,
-  type AppState,
 } from "./appState.js";
-import * as A from "./actions.js";
-
-// =============================================================================
-// Helper: Build AppState snapshot from atoms for pure action functions
-// =============================================================================
-
-const buildState = (get: Atom.FnContext): AppState => ({
-  files: get(filesAtom),
-  pending: get(pendingAtom),
-  conflicts: get(conflictsAtom),
-  selection: get(selectionAtom),
-  editMode: get(editModeAtom),
-  clipboard: get(clipboardAtom),
-  search: get(searchAtom),
-  modal: get(modalAtom),
-  message: get(messageAtom),
-  colWidths: get(colWidthsAtom),
-});
 
 // =============================================================================
 // Pending Changes Operations
@@ -58,9 +36,11 @@ const buildState = (get: Atom.FnContext): AppState => ({
  * Upsert a pending change
  */
 export const upsertChangeOp = Atom.fnSync((change: PendingChange, get) => {
-  const state = buildState(get);
-  const newState = A.upsertChange(state, change);
-  get.set(pendingAtom, newState.pending);
+  const pending = get(pendingAtom);
+  const key = pendingKey(change.key, change.fileIndex);
+  const newPending = new Map(pending);
+  newPending.set(key, change);
+  get.set(pendingAtom, newPending);
 });
 
 /**
@@ -68,12 +48,20 @@ export const upsertChangeOp = Atom.fnSync((change: PendingChange, get) => {
  */
 export const removeChangeOp = Atom.fnSync(
   (args: { varKey: string; fileIndex: number }, get) => {
-    const state = buildState(get);
-    const newState = A.removeChange(state, args.varKey, args.fileIndex);
-    Atom.batch(() => {
-      get.set(pendingAtom, newState.pending);
-      get.set(conflictsAtom, newState.conflicts);
-    });
+    const pending = get(pendingAtom);
+    const key = pendingKey(args.varKey, args.fileIndex);
+    
+    if (!pending.has(key)) return;
+    
+    const conflicts = get(conflictsAtom);
+    const newPending = new Map(pending);
+    newPending.delete(key);
+    
+    const newConflicts = new Set(conflicts);
+    newConflicts.delete(key);
+    
+    get.set(pendingAtom, newPending);
+    get.set(conflictsAtom, newConflicts);
   }
 );
 
@@ -82,9 +70,21 @@ export const removeChangeOp = Atom.fnSync(
  */
 export const removeChangesForKeyOp = Atom.fnSync(
   (args: { varKey: string; excludeFileIndex?: number }, get) => {
-    const state = buildState(get);
-    const newState = A.removeChangesForKey(state, args.varKey, args.excludeFileIndex);
-    get.set(pendingAtom, newState.pending);
+    const pending = get(pendingAtom);
+    const newPending = new Map<string, PendingChange>();
+    
+    for (const [key, change] of pending) {
+      if (change.key === args.varKey) {
+        if (args.excludeFileIndex !== undefined && change.fileIndex === args.excludeFileIndex) {
+          newPending.set(key, change);
+        }
+        // else: skip (remove)
+      } else {
+        newPending.set(key, change);
+      }
+    }
+    
+    get.set(pendingAtom, newPending);
   }
 );
 
@@ -92,12 +92,8 @@ export const removeChangesForKeyOp = Atom.fnSync(
  * Clear all pending changes and conflicts
  */
 export const clearChangesOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.clearChanges(state);
-  Atom.batch(() => {
-    get.set(pendingAtom, newState.pending);
-    get.set(conflictsAtom, newState.conflicts);
-  });
+  get.set(pendingAtom, new Map());
+  get.set(conflictsAtom, new Set());
 });
 
 /**
@@ -105,12 +101,21 @@ export const clearChangesOp = Atom.fnSync((_: void, get) => {
  * Returns true if something was undone
  */
 export const undoLastOp = Atom.fnSync((_: void, get): boolean => {
-  const state = buildState(get);
-  const { state: newState, didUndo } = A.undoLast(state);
-  if (didUndo) {
-    get.set(pendingAtom, newState.pending);
+  const pending = get(pendingAtom);
+  
+  if (pending.size === 0) {
+    return false;
   }
-  return didUndo;
+  
+  // Map preserves insertion order, so we can get the last key
+  const keys = Array.from(pending.keys());
+  const lastKey = keys[keys.length - 1]!;
+  
+  const newPending = new Map(pending);
+  newPending.delete(lastKey);
+  get.set(pendingAtom, newPending);
+  
+  return true;
 }, { initialValue: false });
 
 /**
@@ -118,9 +123,15 @@ export const undoLastOp = Atom.fnSync((_: void, get): boolean => {
  */
 export const addChangesOp = Atom.fnSync(
   (changes: ReadonlyArray<PendingChange>, get) => {
-    const state = buildState(get);
-    const newState = A.addChanges(state, changes);
-    get.set(pendingAtom, newState.pending);
+    const pending = get(pendingAtom);
+    const newPending = new Map(pending);
+    
+    for (const change of changes) {
+      const key = pendingKey(change.key, change.fileIndex);
+      newPending.set(key, change);
+    }
+    
+    get.set(pendingAtom, newPending);
   }
 );
 
@@ -133,9 +144,7 @@ export const addChangesOp = Atom.fnSync(
  */
 export const setSelectionOp = Atom.fnSync(
   (args: { row: number; col: number }, get) => {
-    const state = buildState(get);
-    const newState = A.setSelection(state, args.row, args.col);
-    get.set(selectionAtom, newState.selection);
+    get.set(selectionAtom, { row: args.row, col: args.col });
   }
 );
 
@@ -143,48 +152,48 @@ export const setSelectionOp = Atom.fnSync(
  * Move selection up (clamped to 0)
  */
 export const moveUpOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.moveUp(state);
-  get.set(selectionAtom, newState.selection);
+  const selection = get(selectionAtom);
+  const newRow = Math.max(0, selection.row - 1);
+  get.set(selectionAtom, { ...selection, row: newRow });
 });
 
 /**
  * Move selection down (clamped to rowCount - 1)
  */
 export const moveDownOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
+  const selection = get(selectionAtom);
   const rowCount = get(rowCountAtom);
-  const newState = A.moveDown(state, rowCount);
-  get.set(selectionAtom, newState.selection);
+  const newRow = Math.min(rowCount - 1, selection.row + 1);
+  get.set(selectionAtom, { ...selection, row: newRow });
 });
 
 /**
  * Move selection left (clamped to 0)
  */
 export const moveLeftOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.moveLeft(state);
-  get.set(selectionAtom, newState.selection);
+  const selection = get(selectionAtom);
+  const newCol = Math.max(0, selection.col - 1);
+  get.set(selectionAtom, { ...selection, col: newCol });
 });
 
 /**
  * Move selection right (clamped to fileCount - 1)
  */
 export const moveRightOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
+  const selection = get(selectionAtom);
   const fileCount = get(fileCountAtom);
-  const newState = A.moveRight(state, fileCount);
-  get.set(selectionAtom, newState.selection);
+  const newCol = Math.min(fileCount - 1, selection.col + 1);
+  get.set(selectionAtom, { ...selection, col: newCol });
 });
 
 /**
  * Cycle column (wrap around)
  */
 export const cycleColumnOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
+  const selection = get(selectionAtom);
   const fileCount = get(fileCountAtom);
-  const newState = A.cycleColumn(state, fileCount);
-  get.set(selectionAtom, newState.selection);
+  const newCol = (selection.col + 1) % fileCount;
+  get.set(selectionAtom, { ...selection, col: newCol });
 });
 
 /**
@@ -273,9 +282,7 @@ export const prevDiffOp = Atom.fnSync((_: void, get) => {
  */
 export const setFilesOp = Atom.fnSync(
   (files: ReadonlyArray<EnvFile>, get) => {
-    const state = buildState(get);
-    const newState = A.setFiles(state, files);
-    get.set(filesAtom, newState.files);
+    get.set(filesAtom, files);
   }
 );
 
@@ -284,12 +291,39 @@ export const setFilesOp = Atom.fnSync(
  */
 export const updateFileFromDiskOp = Atom.fnSync(
   (args: { fileIndex: number; newVariables: ReadonlyMap<string, string> }, get) => {
-    const state = buildState(get);
-    const newState = A.updateFileFromDisk(state, args.fileIndex, args.newVariables);
-    Atom.batch(() => {
-      get.set(filesAtom, newState.files);
-      get.set(conflictsAtom, newState.conflicts);
-    });
+    const files = get(filesAtom);
+    const file = files[args.fileIndex];
+    if (!file) return;
+    
+    const pending = get(pendingAtom);
+    const conflicts = get(conflictsAtom);
+    
+    // Detect conflicts: pending changes where oldValue no longer matches disk
+    const newConflicts = new Set(conflicts);
+    
+    for (const [pKey, change] of pending) {
+      if (change.fileIndex !== args.fileIndex) continue;
+      
+      const diskValue = args.newVariables.get(change.key) ?? null;
+      const wasConflict = conflicts.has(pKey);
+      
+      // Conflict if disk value differs from what we recorded as oldValue
+      const isConflict = diskValue !== change.oldValue;
+      
+      if (isConflict && !wasConflict) {
+        newConflicts.add(pKey);
+      } else if (!isConflict && wasConflict) {
+        newConflicts.delete(pKey);
+      }
+    }
+    
+    // Update the file in state
+    const newFiles = files.map((f, i) =>
+      i === args.fileIndex ? { ...f, variables: args.newVariables } : f
+    );
+    
+    get.set(filesAtom, newFiles);
+    get.set(conflictsAtom, newConflicts);
   }
 );
 
@@ -301,36 +335,46 @@ export const updateFileFromDiskOp = Atom.fnSync(
  * Enter edit mode for a value
  */
 export const enterEditModeOp = Atom.fnSync((currentValue: string, get) => {
-  const state = buildState(get);
-  const newState = A.enterEditMode(state, currentValue);
-  get.set(editModeAtom, newState.editMode);
+  const editMode: EditMode = {
+    phase: "editValue",
+    inputValue: currentValue,
+    dirty: false,
+  };
+  get.set(editModeAtom, editMode);
 });
 
 /**
  * Enter add mode (new variable)
  */
 export const enterAddModeOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.enterAddMode(state);
-  get.set(editModeAtom, newState.editMode);
+  const editMode: EditMode = {
+    phase: "addKey",
+    inputValue: "",
+    isNewRow: true,
+    dirty: false,
+  };
+  get.set(editModeAtom, editMode);
 });
 
 /**
  * Update edit input value
  */
 export const updateEditInputOp = Atom.fnSync((value: string, get) => {
-  const state = buildState(get);
-  const newState = A.updateEditInput(state, value);
-  get.set(editModeAtom, newState.editMode);
+  const editMode = get(editModeAtom);
+  if (!editMode) return;
+  
+  get.set(editModeAtom, {
+    ...editMode,
+    inputValue: value,
+    dirty: true,
+  });
 });
 
 /**
  * Exit edit mode
  */
 export const exitEditModeOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.exitEditMode(state);
-  get.set(editModeAtom, newState.editMode);
+  get.set(editModeAtom, null);
 });
 
 // =============================================================================
@@ -341,9 +385,7 @@ export const exitEditModeOp = Atom.fnSync((_: void, get) => {
  * Set clipboard
  */
 export const setClipboardOp = Atom.fnSync((clipboard: Clipboard, get) => {
-  const state = buildState(get);
-  const newState = A.setClipboard(state, clipboard);
-  get.set(clipboardAtom, newState.clipboard);
+  get.set(clipboardAtom, clipboard);
 });
 
 // =============================================================================
@@ -354,27 +396,22 @@ export const setClipboardOp = Atom.fnSync((clipboard: Clipboard, get) => {
  * Open search
  */
 export const openSearchOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.openSearch(state);
-  get.set(searchAtom, newState.search);
+  get.set(searchAtom, { active: true, query: "" });
 });
 
 /**
  * Close search
  */
 export const closeSearchOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.closeSearch(state);
-  get.set(searchAtom, newState.search);
+  get.set(searchAtom, { active: false, query: "" });
 });
 
 /**
  * Update search query
  */
 export const setSearchQueryOp = Atom.fnSync((query: string, get) => {
-  const state = buildState(get);
-  const newState = A.setSearchQuery(state, query);
-  get.set(searchAtom, newState.search);
+  const search = get(searchAtom);
+  get.set(searchAtom, { ...search, query });
 });
 
 // =============================================================================
@@ -385,18 +422,14 @@ export const setSearchQueryOp = Atom.fnSync((query: string, get) => {
  * Open a modal
  */
 export const openModalOp = Atom.fnSync((modal: ModalState, get) => {
-  const state = buildState(get);
-  const newState = A.openModal(state, modal);
-  get.set(modalAtom, newState.modal);
+  get.set(modalAtom, modal);
 });
 
 /**
  * Close modal
  */
 export const closeModalOp = Atom.fnSync((_: void, get) => {
-  const state = buildState(get);
-  const newState = A.closeModal(state);
-  get.set(modalAtom, newState.modal);
+  get.set(modalAtom, null);
 });
 
 // =============================================================================
@@ -407,9 +440,7 @@ export const closeModalOp = Atom.fnSync((_: void, get) => {
  * Set message (for flash messages)
  */
 export const setMessageOp = Atom.fnSync((message: string | null, get) => {
-  const state = buildState(get);
-  const newState = A.setMessage(state, message);
-  get.set(messageAtom, newState.message);
+  get.set(messageAtom, message);
 });
 
 // =============================================================================
@@ -421,8 +452,6 @@ export const setMessageOp = Atom.fnSync((message: string | null, get) => {
  */
 export const setColWidthsOp = Atom.fnSync(
   (colWidths: ReadonlyArray<number>, get) => {
-    const state = buildState(get);
-    const newState = A.setColWidths(state, colWidths);
-    get.set(colWidthsAtom, newState.colWidths);
+    get.set(colWidthsAtom, colWidths);
   }
 );

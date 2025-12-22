@@ -6,6 +6,7 @@ import { Effect, Layer } from "effect";
 import { BunFileSystem } from "@effect/platform-bun";
 import { EnvWriter, EnvWriterLive } from "../../src/services/EnvWriter.js";
 import type { EnvFile, PendingChange } from "../../src/types.js";
+import { FilePath } from "../../src/types.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -41,7 +42,7 @@ describe("EnvWriter", () => {
   };
 
   const createEnvFile = (filePath: string, vars: Record<string, string>): EnvFile => ({
-    path: filePath,
+    path: FilePath.make(filePath),
     filename: path.basename(filePath),
     variables: new Map(Object.entries(vars)),
   });

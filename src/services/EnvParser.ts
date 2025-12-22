@@ -3,12 +3,12 @@
  */
 import { Context, Effect, Layer } from "effect"
 import { FileSystem } from "@effect/platform"
-import type { EnvFile } from "../types.js"
+import { EnvFile, FilePath } from "../types.js"
 import { parseEnvToMap } from "./envFormat.js"
 import { FileReadError } from "../errors.js"
 import * as path from "node:path"
 
-export class EnvParser extends Context.Tag("EnvParser")<
+export class EnvParser extends Context.Tag("@envy/EnvParser")<
   EnvParser,
   {
     readonly parseFile: (filePath: string) => Effect.Effect<EnvFile, FileReadError>
@@ -21,28 +21,32 @@ export const EnvParserLive = Layer.effect(
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     
-    const parseFile = (filePath: string): Effect.Effect<EnvFile, FileReadError> =>
-      Effect.gen(function* () {
+    const parseFile = Effect.fn("EnvParser.parseFile")(
+      function* (filePath: string) {
         const content = yield* fs.readFileString(filePath).pipe(
-          Effect.mapError((e) => new FileReadError({ path: filePath, cause: e }))
+          Effect.mapError((e) => FileReadError.make({ path: filePath, cause: e }))
         )
         
         const variables = parseEnvToMap(content)
         const filename = path.basename(filePath)
         
-        return {
-          path: filePath,
+        return EnvFile.make({
+          path: FilePath.make(filePath),
           filename,
           variables,
-        }
-      })
+        })
+      }
+    )
     
-    const parseFiles = (filePaths: ReadonlyArray<string>): Effect.Effect<ReadonlyArray<EnvFile>, FileReadError> =>
-      Effect.all(filePaths.map(parseFile), { concurrency: "unbounded" })
+    const parseFiles = Effect.fn("EnvParser.parseFiles")(
+      function* (filePaths: ReadonlyArray<string>) {
+        return yield* Effect.all(filePaths.map(parseFile), { concurrency: "unbounded" })
+      }
+    )
     
-    return {
+    return EnvParser.of({
       parseFile,
       parseFiles,
-    }
+    })
   })
 )

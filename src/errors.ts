@@ -1,67 +1,58 @@
 /**
  * Tagged error types for Effect-TS error handling
  *
- * Using Effect's Data.TaggedError for proper error discrimination
- * and type-safe error handling via Effect.catchTag
+ * Using Effect's Schema.TaggedError for proper error discrimination,
+ * type-safe error handling via Effect.catchTag, and serialization support.
  */
-import { Data } from "effect";
+import { Schema } from "effect";
 
 /**
  * Error reading a file from disk
  */
-export class FileReadError extends Data.TaggedError("FileReadError")<{
-  readonly path: string;
-  readonly cause: unknown;
-}> {
-  override get message(): string {
-    const causeMsg = this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `Failed to read file ${this.path}: ${causeMsg}`;
+export class FileReadError extends Schema.TaggedError<FileReadError>()(
+  "FileReadError",
+  {
+    path: Schema.String,
+    cause: Schema.Defect,
   }
-}
+) {}
 
 /**
  * Error writing a file to disk
  */
-export class FileWriteError extends Data.TaggedError("FileWriteError")<{
-  readonly path: string;
-  readonly cause: unknown;
-}> {
-  override get message(): string {
-    const causeMsg = this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `Failed to write file ${this.path}: ${causeMsg}`;
+export class FileWriteError extends Schema.TaggedError<FileWriteError>()(
+  "FileWriteError",
+  {
+    path: Schema.String,
+    cause: Schema.Defect,
   }
-}
+) {}
 
 /**
  * Error parsing an env file
  */
-export class EnvParseError extends Data.TaggedError("EnvParseError")<{
-  readonly path: string;
-  readonly line?: number;
-  readonly cause?: unknown;
-}> {
-  override get message(): string {
-    const lineInfo = this.line !== undefined ? ` at line ${this.line}` : "";
-    const causeMsg = this.cause ? `: ${this.cause instanceof Error ? this.cause.message : String(this.cause)}` : "";
-    return `Failed to parse env file ${this.path}${lineInfo}${causeMsg}`;
+export class EnvParseError extends Schema.TaggedError<EnvParseError>()(
+  "EnvParseError",
+  {
+    path: Schema.String,
+    line: Schema.optional(Schema.Number),
+    cause: Schema.optional(Schema.Defect),
   }
-}
+) {}
 
 /**
  * Error when file watcher fails
  */
-export class FileWatchError extends Data.TaggedError("FileWatchError")<{
-  readonly paths: ReadonlyArray<string>;
-  readonly cause: unknown;
-}> {
-  override get message(): string {
-    const causeMsg = this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `File watcher error for [${this.paths.join(", ")}]: ${causeMsg}`;
+export class FileWatchError extends Schema.TaggedError<FileWatchError>()(
+  "FileWatchError",
+  {
+    paths: Schema.Array(Schema.String),
+    cause: Schema.Defect,
   }
-}
+) {}
 
 /**
  * Union type of all application errors
  */
-export type AppError = FileReadError | FileWriteError | EnvParseError | FileWatchError;
-
+export const AppError = Schema.Union(FileReadError, FileWriteError, EnvParseError, FileWatchError);
+export type AppError = typeof AppError.Type;

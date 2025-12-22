@@ -15,7 +15,7 @@ export interface FileChangeEvent {
   readonly type: "update" | "remove";
 }
 
-export class FileWatcher extends Context.Tag("FileWatcher")<
+export class FileWatcher extends Context.Tag("@envy/FileWatcher")<
   FileWatcher,
   {
     /**

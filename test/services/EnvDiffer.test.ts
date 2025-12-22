@@ -5,9 +5,10 @@ import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { EnvDifferLive, EnvDiffer } from "../../src/services/EnvDiffer.js";
 import type { EnvFile, DiffRow } from "../../src/types.js";
+import { FilePath } from "../../src/types.js";
 
 // Helper to run the computeDiff effect
-const runComputeDiff = (files: EnvFile[]): DiffRow[] =>
+const runComputeDiff = (files: EnvFile[]): readonly DiffRow[] =>
   Effect.runSync(
     Effect.gen(function* () {
       const differ = yield* EnvDiffer;
@@ -17,7 +18,7 @@ const runComputeDiff = (files: EnvFile[]): DiffRow[] =>
 
 // Helper to create EnvFile
 const createFile = (path: string, vars: Record<string, string>): EnvFile => ({
-  path,
+  path: FilePath.make(path),
   filename: path.split("/").pop() ?? path,
   variables: new Map(Object.entries(vars)),
 });

@@ -4,10 +4,11 @@
 import { describe, expect, test } from "bun:test";
 import { findFileIndex } from "../src/state/fileSync.js";
 import type { EnvFile } from "../src/types.js";
+import { FilePath } from "../src/types.js";
 
 // Helper to create EnvFile
 const createFile = (path: string): EnvFile => ({
-  path,
+  path: FilePath.make(path),
   filename: path.split("/").pop() ?? path,
   variables: new Map(),
 });

@@ -18,10 +18,11 @@ import {
   pendingKey,
 } from "../../src/state/appState.js";
 import type { EnvFile, PendingChange, SearchState } from "../../src/types.js";
+import { FilePath } from "../../src/types.js";
 
 // Helper to create EnvFile
 const createFile = (path: string, vars: Record<string, string>): EnvFile => ({
-  path,
+  path: FilePath.make(path),
   filename: path.split("/").pop() ?? path,
   variables: new Map(Object.entries(vars)),
 });

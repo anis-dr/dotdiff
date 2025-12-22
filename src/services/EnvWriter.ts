@@ -14,7 +14,7 @@ import { FileReadError, FileWriteError } from "../errors.js"
 /** Union of errors that can occur during file write operations */
 export type EnvWriterError = FileReadError | FileWriteError
 
-export class EnvWriter extends Context.Tag("EnvWriter")<
+export class EnvWriter extends Context.Tag("@envy/EnvWriter")<
   EnvWriter,
   {
     readonly applyChanges: (
@@ -29,11 +29,11 @@ export const EnvWriterLive = Layer.effect(
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     
-    const applyChanges = (
-      files: ReadonlyArray<EnvFile>,
-      changes: ReadonlyArray<PendingChange>
-    ): Effect.Effect<ReadonlyArray<EnvFile>, EnvWriterError> =>
-      Effect.gen(function* () {
+    const applyChanges = Effect.fn("EnvWriter.applyChanges")(
+      function* (
+        files: ReadonlyArray<EnvFile>,
+        changes: ReadonlyArray<PendingChange>
+      ) {
         const changesByFile = groupChangesByFile(changes)
         
         // Apply changes to each file using patch-based approach
@@ -46,7 +46,7 @@ export const EnvWriterLive = Layer.effect(
           if (fileChanges && fileChanges.length > 0) {
             // Read original file content
             const originalContent = yield* fs.readFileString(file.path).pipe(
-              Effect.mapError((e) => new FileReadError({ path: file.path, cause: e }))
+              Effect.mapError((e) => FileReadError.make({ path: file.path, cause: e }))
             )
 
             // Determine which keys already exist in this file based on actual content
@@ -79,7 +79,7 @@ export const EnvWriterLive = Layer.effect(
             
             // Write patched content back to disk
             yield* fs.writeFileString(file.path, newContent).pipe(
-              Effect.mapError((e) => new FileWriteError({ path: file.path, cause: e }))
+              Effect.mapError((e) => FileWriteError.make({ path: file.path, cause: e }))
             )
             
             // Update in-memory variables map
@@ -102,10 +102,11 @@ export const EnvWriterLive = Layer.effect(
         }
         
         return updatedFiles
-      })
+      }
+    )
     
-    return {
+    return EnvWriter.of({
       applyChanges,
-    }
+    })
   })
 )

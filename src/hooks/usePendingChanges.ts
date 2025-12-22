@@ -68,12 +68,11 @@ export function usePendingChanges(): UsePendingChanges {
     [doRemoveChangesForKey]
   );
 
-  // undoLast returns the value from the fnSync
+  // Check size first, then execute to avoid race condition
   const undoLast = useCallback((): boolean => {
-    doUndoLast();
-    // Note: undoLastOp returns boolean via Option, but useAtomSet doesn't return values
-    // We need to check pending size for the return value
-    return pending.size > 0;
+    const hadChanges = pending.size > 0;
+    if (hadChanges) doUndoLast();
+    return hadChanges;
   }, [doUndoLast, pending.size]);
 
   // findChange is a pure read operation, doesn't need atomic op
