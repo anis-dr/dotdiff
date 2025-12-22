@@ -8,19 +8,18 @@ import { Effect } from "effect";
 import { FileSystem } from "@effect/platform";
 import type { EnvFile } from "../types.js";
 import { parseEnvToMap } from "../services/envFormat.js";
+import { FileReadError } from "../errors.js";
 
 /**
  * Re-read a single file from disk and return updated variables.
  */
 export const readFileFromDisk = (
   filePath: string
-): Effect.Effect<Map<string, string>, Error, FileSystem.FileSystem> =>
+): Effect.Effect<Map<string, string>, FileReadError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const content = yield* fs.readFileString(filePath).pipe(
-      Effect.mapError(
-        (e) => new Error(`Failed to read file ${filePath}: ${e.message}`)
-      )
+      Effect.mapError((e) => new FileReadError({ path: filePath, cause: e }))
     );
     return parseEnvToMap(content);
   });
@@ -41,4 +40,3 @@ export const findFileIndex = (
   }
   return -1;
 };
-

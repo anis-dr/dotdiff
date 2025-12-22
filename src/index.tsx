@@ -188,7 +188,11 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
         if (!file) return;
 
         const newVars = yield* readFileFromDisk(file.path).pipe(
-          Effect.catchAll(() => Effect.succeed(null))
+          Effect.catchAll((error) =>
+            Console.error(`Failed to read ${file.path}: ${error.message}`).pipe(
+              Effect.as(null)
+            )
+          )
         );
 
         if (newVars && fileChangeCallback) {
@@ -197,11 +201,13 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
         }
       })
     ).pipe(
-      Effect.catchAll(() => Effect.void),
+      Effect.catchAll((error) =>
+        Console.error(`File watcher error: ${String(error)}`)
+      ),
       Effect.fork
     );
 
-    // Keep the process alive
+    // Effect.never keeps the fiber alive so the file watcher and TUI continue running
     return yield* Effect.never;
   })
 ).pipe(

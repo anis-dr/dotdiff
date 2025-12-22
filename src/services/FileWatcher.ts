@@ -7,6 +7,7 @@
 import { Context, Effect, Layer, Stream, pipe } from "effect";
 import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
+import { FILE_WATCHER_DEBOUNCE_MS } from "../constants.js";
 
 /** Event emitted when a watched file changes */
 export interface FileChangeEvent {
@@ -19,7 +20,7 @@ export class FileWatcher extends Context.Tag("FileWatcher")<
   {
     /**
      * Watch multiple file paths and emit debounced change events.
-     * The stream emits after changes settle (150ms debounce).
+     * The stream emits after changes settle (debounce interval from constants).
      */
     readonly watchFiles: (
       paths: ReadonlyArray<string>
@@ -60,11 +61,10 @@ export const FileWatcherLive = Layer.effect(
       // Merge all file streams and debounce
       return pipe(
         Stream.mergeAll(fileStreams, { concurrency: paths.length }),
-        Stream.debounce("150 millis")
+        Stream.debounce(`${FILE_WATCHER_DEBOUNCE_MS} millis`)
       );
     };
 
     return { watchFiles };
   })
 );
-

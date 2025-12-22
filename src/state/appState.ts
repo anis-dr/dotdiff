@@ -1,7 +1,8 @@
 /**
- * Normalized application state - single source of truth
+ * Normalized application state - split into focused atoms for better performance
  *
- * All display data is derived from this state. What you see = what you save.
+ * Each atom slice only triggers re-renders for components that depend on it.
+ * Derived atoms compute values from the base atoms.
  */
 import { atom } from "jotai";
 import type {
@@ -12,7 +13,6 @@ import type {
   ModalState,
   PendingChange,
   SearchState,
-  VariableStatus,
 } from "../types.js";
 import { getVariableStatus } from "../types.js";
 
@@ -25,7 +25,44 @@ export const pendingKey = (varKey: string, fileIndex: number): string =>
   `${varKey}:${fileIndex}`;
 
 // =============================================================================
-// App State Type
+// Base Atoms - Split by concern for granular re-renders
+// =============================================================================
+
+/** Files as loaded from disk */
+export const filesAtom = atom<ReadonlyArray<EnvFile>>([]);
+
+/** Pending changes - keyed by "${varKey}:${fileIndex}" */
+export const pendingAtom = atom<ReadonlyMap<string, PendingChange>>(new Map());
+
+/** Conflicts - set of pendingKey strings where disk value changed */
+export const conflictsAtom = atom<ReadonlySet<string>>(new Set<string>());
+
+/** Selection state */
+export const selectionAtom = atom<{ readonly row: number; readonly col: number }>({
+  row: 0,
+  col: 0,
+});
+
+/** Edit mode state */
+export const editModeAtom = atom<EditMode | null>(null);
+
+/** Clipboard state */
+export const clipboardAtom = atom<Clipboard | null>(null);
+
+/** Search state */
+export const searchAtom = atom<SearchState>({ active: false, query: "" });
+
+/** Modal state */
+export const modalAtom = atom<ModalState | null>(null);
+
+/** Message state */
+export const messageAtom = atom<string | null>(null);
+
+/** Layout column widths */
+export const colWidthsAtom = atom<ReadonlyArray<number>>([]);
+
+// =============================================================================
+// App State Type (composite for backward compatibility)
 // =============================================================================
 
 export interface AppState {
@@ -71,10 +108,45 @@ export const initialAppState: AppState = {
 };
 
 // =============================================================================
-// Main App State Atom
+// Composite App State Atom (backward compatible read/write)
 // =============================================================================
 
-export const appStateAtom = atom<AppState>(initialAppState);
+/**
+ * Composite atom that combines all base atoms into a single AppState.
+ * This provides backward compatibility while still allowing granular subscriptions.
+ */
+export const appStateAtom = atom(
+  // Getter: compose from base atoms
+  (get): AppState => ({
+    files: get(filesAtom),
+    pending: get(pendingAtom),
+    conflicts: get(conflictsAtom),
+    selection: get(selectionAtom),
+    editMode: get(editModeAtom),
+    clipboard: get(clipboardAtom),
+    search: get(searchAtom),
+    modal: get(modalAtom),
+    message: get(messageAtom),
+    colWidths: get(colWidthsAtom),
+  }),
+  // Setter: dispatch updates to individual atoms
+  (get, set, update: AppState | ((prev: AppState) => AppState)) => {
+    const prev = get(appStateAtom);
+    const next = typeof update === "function" ? update(prev) : update;
+
+    // Only update atoms that actually changed
+    if (next.files !== prev.files) set(filesAtom, next.files);
+    if (next.pending !== prev.pending) set(pendingAtom, next.pending);
+    if (next.conflicts !== prev.conflicts) set(conflictsAtom, next.conflicts);
+    if (next.selection !== prev.selection) set(selectionAtom, next.selection);
+    if (next.editMode !== prev.editMode) set(editModeAtom, next.editMode);
+    if (next.clipboard !== prev.clipboard) set(clipboardAtom, next.clipboard);
+    if (next.search !== prev.search) set(searchAtom, next.search);
+    if (next.modal !== prev.modal) set(modalAtom, next.modal);
+    if (next.message !== prev.message) set(messageAtom, next.message);
+    if (next.colWidths !== prev.colWidths) set(colWidthsAtom, next.colWidths);
+  }
+);
 
 // =============================================================================
 // Derived Atoms
@@ -85,8 +157,8 @@ export const appStateAtom = atom<AppState>(initialAppState);
  * This is the "effective" view - what the user sees and what will be saved.
  */
 export const effectiveDiffRowsAtom = atom((get): ReadonlyArray<DiffRow> => {
-  const state = get(appStateAtom);
-  const { files, pending } = state;
+  const files = get(filesAtom);
+  const pending = get(pendingAtom);
 
   if (files.length === 0) return [];
 
@@ -141,10 +213,9 @@ export const effectiveDiffRowsAtom = atom((get): ReadonlyArray<DiffRow> => {
  * The currently selected row with effective values
  */
 export const currentRowAtom = atom((get): DiffRow | null => {
-  const state = get(appStateAtom);
+  const selection = get(selectionAtom);
   const rows = get(effectiveDiffRowsAtom);
-  const { row } = state.selection;
-  return rows[row] ?? null;
+  return rows[selection.row] ?? null;
 });
 
 /**
@@ -163,17 +234,16 @@ export const statsAtom = atom((get) => {
  * Pending changes as a flat array (for iteration, save preview, etc.)
  */
 export const pendingListAtom = atom((get): ReadonlyArray<PendingChange> => {
-  const state = get(appStateAtom);
-  return Array.from(state.pending.values());
+  const pending = get(pendingAtom);
+  return Array.from(pending.values());
 });
 
 /**
  * Filtered row indices based on search query
  */
 export const filteredRowIndicesAtom = atom((get): ReadonlyArray<number> => {
-  const state = get(appStateAtom);
+  const search = get(searchAtom);
   const rows = get(effectiveDiffRowsAtom);
-  const { search } = state;
 
   if (!search.active || search.query === "") {
     return rows.map((_, i) => i);
@@ -190,8 +260,8 @@ export const filteredRowIndicesAtom = atom((get): ReadonlyArray<number> => {
  * File count (convenience)
  */
 export const fileCountAtom = atom((get): number => {
-  const state = get(appStateAtom);
-  return state.files.length;
+  const files = get(filesAtom);
+  return files.length;
 });
 
 /**
@@ -201,6 +271,3 @@ export const rowCountAtom = atom((get): number => {
   const rows = get(effectiveDiffRowsAtom);
   return rows.length;
 });
-
-
-

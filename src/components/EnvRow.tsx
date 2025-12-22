@@ -7,8 +7,16 @@ import { useAtomValue } from "jotai";
 import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, VariableStatus } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";
-import { truncate, formatDisplayValue } from "../utils/index.js";
-import { appStateAtom, pendingKey } from "../state/appState.js";
+import { truncate } from "../utils/index.js";
+import {
+  selectionAtom,
+  pendingAtom,
+  conflictsAtom,
+  colWidthsAtom,
+  editModeAtom,
+  pendingKey,
+} from "../state/appState.js";
+import { ValueCell } from "./ValueCell.js";
 
 interface EnvRowProps {
   readonly row: DiffRow;
@@ -35,8 +43,13 @@ export function EnvRow({
   onEditInput,
   onEditSubmit,
 }: EnvRowProps) {
-  const state = useAtomValue(appStateAtom);
-  const { selection, pending, conflicts, colWidths, editMode } = state;
+  // Use focused atoms for granular re-renders
+  const selection = useAtomValue(selectionAtom);
+  const pending = useAtomValue(pendingAtom);
+  const conflicts = useAtomValue(conflictsAtom);
+  const colWidths = useAtomValue(colWidthsAtom);
+  const editMode = useAtomValue(editModeAtom);
+
   const selectedRow = selection.row;
   const selectedCol = selection.col;
 
@@ -50,7 +63,7 @@ export function EnvRow({
 
   // Find pending changes for this row
   const pendingByFile = new Map<number, { oldValue: string | null; newValue: string | null }>();
-  for (let i = 0; i < (row.values.length); i++) {
+  for (let i = 0; i < row.values.length; i++) {
     const pKey = pendingKey(row.key, i);
     const change = pending.get(pKey);
     if (change) {
@@ -96,7 +109,7 @@ export function EnvRow({
           paddingRight={1}
           backgroundColor={isSelectedRow ? Colors.selectedRowBg : Colors.background}
         >
-          {isEditingKey ? (
+          {isEditingKey && editMode ? (
             <box flexDirection="row">
               <text>
                 <span fg={Colors.selectedText}>{icon} </span>
@@ -151,80 +164,23 @@ export function EnvRow({
           const hasConflict = conflicts.has(pendingKey(row.key, fileIndex));
           const width = colWidths[fileIndex + 1] ?? 20;
 
-          const maxLen = width - 2;
-          const truncatedValue = truncate(formatDisplayValue(value), maxLen);
-          const truncatedPending =
-            pendingChange !== undefined
-              ? truncate(formatDisplayValue(pendingChange.newValue), maxLen)
-              : undefined;
-
           return (
-            <box key={fileIndex} width={width + 1} flexDirection="row">
-              {/* Separator */}
-              <box width={1} backgroundColor={Colors.border} />
-              <box
-                width={width}
-                paddingLeft={1}
-                paddingRight={1}
-                {...(isSelectedCell
-                  ? { backgroundColor: Colors.selectedBg }
-                  : hasPending
-                    ? { backgroundColor: Colors.pendingChangeBg }
-                    : {})}
-              >
-                {isEditingThisCell ? (
-                  <input
-                    ref={inputRef}
-                    focused
-                    value={editMode.inputValue}
-                    onInput={onEditInput}
-                    onSubmit={onEditSubmit}
-                    onPaste={handlePaste}
-                    style={{ width: width - 2 }}
-                  />
-                ) : (
-                  <text>
-                    {hasPending ? (
-                      <>
-                        <span
-                          fg={
-                            isSelectedCell
-                              ? Colors.selectedText
-                              : hasConflict
-                                ? Colors.missing
-                                : Colors.pendingChange
-                          }
-                        >
-                          {truncatedPending}
-                        </span>
-                        {hasConflict && (
-                          <span
-                            fg={
-                              isSelectedCell ? Colors.selectedText : Colors.missing
-                            }
-                          >
-                            {" "}
-                            ⚠
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span
-                        fg={
-                          isSelectedCell
-                            ? Colors.selectedText
-                            : value === null
-                              ? Colors.missing
-                              : Colors.secondaryText
-                        }
-                      >
-                        {truncatedValue}
-                      </span>
-                    )}
-                  </text>
-                )}
-              </box>
-            </box>
+            <ValueCell
+              key={fileIndex}
+              value={value}
+              fileIndex={fileIndex}
+              width={width}
+              isSelectedCell={isSelectedCell}
+              isEditing={isEditingThisCell}
+              hasPending={hasPending}
+              hasConflict={hasConflict}
+              pendingValue={pendingChange?.newValue}
+              editMode={editMode}
+              inputRef={inputRef}
+              onEditInput={onEditInput}
+              onEditSubmit={onEditSubmit}
+              onPaste={handlePaste}
+            />
           );
         })}
       </box>

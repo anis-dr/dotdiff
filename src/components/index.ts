@@ -1,6 +1,7 @@
 export { App } from "./App.js"
 export { Header } from "./Header.js"
 export { EnvRow } from "./EnvRow.js"
+export { ValueCell } from "./ValueCell.js"
 export { Footer } from "./Footer.js"
 export { Modal } from "./Modal.js"
 export { HelpOverlay } from "./HelpOverlay.js"

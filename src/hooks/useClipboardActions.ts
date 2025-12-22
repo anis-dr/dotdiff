@@ -1,0 +1,92 @@
+/**
+ * Hook for clipboard-related actions (copy, paste, paste all)
+ */
+import { useCallback } from "react";
+import { useAtomValue } from "jotai";
+import type { DiffRow, PendingChange } from "../types.js";
+import { currentRowAtom, fileCountAtom, selectionAtom } from "../state/appState.js";
+import { useClipboard } from "./useClipboard.js";
+import { usePendingChanges } from "./usePendingChanges.js";
+import { useFiles } from "./useFiles.js";
+import { useMessage } from "./useMessage.js";
+
+export interface UseClipboardActions {
+  handleCopy: () => void;
+  handlePaste: () => void;
+  handlePasteAll: () => void;
+}
+
+export function useClipboardActions(): UseClipboardActions {
+  const currentRow = useAtomValue(currentRowAtom);
+  const selection = useAtomValue(selectionAtom);
+  const fileCount = useAtomValue(fileCountAtom);
+
+  const { clipboard, setClipboard } = useClipboard();
+  const { upsertChange, addChanges } = usePendingChanges();
+  const { getOriginalValue } = useFiles();
+  const { showMessage } = useMessage();
+
+  const selectedCol = selection.col;
+
+  const handleCopy = useCallback(() => {
+    if (!currentRow) return;
+    const value = currentRow.values[selectedCol];
+    if (value === null || value === undefined) {
+      showMessage("⚠ Nothing to copy");
+      return;
+    }
+    setClipboard({ key: currentRow.key, value });
+    showMessage(`📋 Copied ${currentRow.key}`);
+  }, [currentRow, selectedCol, setClipboard, showMessage]);
+
+  const handlePaste = useCallback(() => {
+    if (!currentRow || !clipboard) {
+      showMessage("⚠ Clipboard empty");
+      return;
+    }
+    const originalValue = getOriginalValue(currentRow.key, selectedCol);
+    if (clipboard.value === originalValue) {
+      showMessage("⚠ Same value");
+      return;
+    }
+    upsertChange({
+      key: currentRow.key,
+      fileIndex: selectedCol,
+      oldValue: originalValue,
+      newValue: clipboard.value,
+    });
+    showMessage(`📋 Pasted to ${currentRow.key}`);
+  }, [currentRow, clipboard, selectedCol, getOriginalValue, upsertChange, showMessage]);
+
+  const handlePasteAll = useCallback(() => {
+    if (!currentRow || !clipboard) {
+      showMessage("⚠ Clipboard empty");
+      return;
+    }
+    const changes: PendingChange[] = [];
+    for (let i = 0; i < fileCount; i++) {
+      const originalValue = getOriginalValue(currentRow.key, i);
+      if (clipboard.value !== originalValue) {
+        changes.push({
+          key: currentRow.key,
+          fileIndex: i,
+          oldValue: originalValue,
+          newValue: clipboard.value,
+        });
+      }
+    }
+    if (changes.length === 0) {
+      showMessage("⚠ All files already have this value");
+      return;
+    }
+    addChanges(changes);
+    showMessage(`📋 Pasted to ${changes.length} files`);
+  }, [currentRow, clipboard, fileCount, getOriginalValue, addChanges, showMessage]);
+
+  return {
+    handleCopy,
+    handlePaste,
+    handlePasteAll,
+  };
+}
+

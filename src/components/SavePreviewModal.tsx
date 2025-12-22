@@ -5,6 +5,7 @@ import type { EnvFile, PendingChange } from "../types.js";
 import { Colors } from "../types.js";
 import { Modal } from "./Modal.js";
 import { truncate, groupChangesByFile } from "../utils/index.js";
+import { SAVE_PREVIEW_MAX_ITEMS } from "../constants.js";
 
 interface SavePreviewModalProps {
   readonly files: ReadonlyArray<EnvFile>;
@@ -53,7 +54,7 @@ export function SavePreviewModal({
               </b>
               <span fg={Colors.dimText}> ({fileChanges.length})</span>
             </text>
-            {fileChanges.slice(0, 3).map((change, i) => {
+            {fileChanges.slice(0, SAVE_PREVIEW_MAX_ITEMS).map((change, i) => {
               // Determine if this is an addition (oldValue was null)
               const isAddition = change.oldValue === null && change.newValue !== null;
               const isDeletion = change.newValue === null;
@@ -80,11 +81,11 @@ export function SavePreviewModal({
                 </box>
               );
             })}
-            {fileChanges.length > 3 && (
+            {fileChanges.length > SAVE_PREVIEW_MAX_ITEMS && (
               <box paddingLeft={2}>
                 <text>
                   <span fg={Colors.dimText}>
-                    ...and {fileChanges.length - 3} more
+                    ...and {fileChanges.length - SAVE_PREVIEW_MAX_ITEMS} more
                   </span>
                 </text>
               </box>
@@ -95,4 +96,3 @@ export function SavePreviewModal({
     </Modal>
   );
 }
-

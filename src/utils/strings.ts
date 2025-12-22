@@ -2,8 +2,8 @@
  * String utility functions
  */
 
-/** Max length for clipboard display in footer */
-export const TRUNCATE_CLIPBOARD = 30;
+// Re-export the constant from constants.ts for backward compatibility
+export { TRUNCATE_CLIPBOARD } from "../constants.js";
 
 /**
  * Truncate a string to a maximum length, adding ellipsis if truncated
@@ -17,4 +17,3 @@ export const truncate = (str: string, maxLen: number): string =>
  */
 export const formatDisplayValue = (value: string | null): string =>
   value === null ? "—" : value === "" ? '""' : value;
-

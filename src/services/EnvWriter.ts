@@ -9,6 +9,10 @@ import { FileSystem } from "@effect/platform"
 import type { EnvFile, PendingChange } from "../types.js"
 import { groupChangesByFile } from "../utils/index.js"
 import { parseEnvLines, patchEnvContent } from "./envFormat.js"
+import { FileReadError, FileWriteError } from "../errors.js"
+
+/** Union of errors that can occur during file write operations */
+export type EnvWriterError = FileReadError | FileWriteError
 
 export class EnvWriter extends Context.Tag("EnvWriter")<
   EnvWriter,
@@ -16,7 +20,7 @@ export class EnvWriter extends Context.Tag("EnvWriter")<
     readonly applyChanges: (
       files: ReadonlyArray<EnvFile>,
       changes: ReadonlyArray<PendingChange>
-    ) => Effect.Effect<ReadonlyArray<EnvFile>, Error>
+    ) => Effect.Effect<ReadonlyArray<EnvFile>, EnvWriterError>
   }
 >() {}
 
@@ -28,7 +32,7 @@ export const EnvWriterLive = Layer.effect(
     const applyChanges = (
       files: ReadonlyArray<EnvFile>,
       changes: ReadonlyArray<PendingChange>
-    ): Effect.Effect<ReadonlyArray<EnvFile>, Error> =>
+    ): Effect.Effect<ReadonlyArray<EnvFile>, EnvWriterError> =>
       Effect.gen(function* () {
         const changesByFile = groupChangesByFile(changes)
         
@@ -42,7 +46,7 @@ export const EnvWriterLive = Layer.effect(
           if (fileChanges && fileChanges.length > 0) {
             // Read original file content
             const originalContent = yield* fs.readFileString(file.path).pipe(
-              Effect.mapError((e) => new Error(`Failed to read file ${file.path}: ${e.message}`))
+              Effect.mapError((e) => new FileReadError({ path: file.path, cause: e }))
             )
 
             // Determine which keys already exist in this file based on actual content
@@ -75,7 +79,7 @@ export const EnvWriterLive = Layer.effect(
             
             // Write patched content back to disk
             yield* fs.writeFileString(file.path, newContent).pipe(
-              Effect.mapError((e) => new Error(`Failed to write file ${file.path}: ${e.message}`))
+              Effect.mapError((e) => new FileWriteError({ path: file.path, cause: e }))
             )
             
             // Update in-memory variables map
@@ -105,4 +109,3 @@ export const EnvWriterLive = Layer.effect(
     }
   })
 )
-
