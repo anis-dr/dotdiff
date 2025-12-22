@@ -17,7 +17,7 @@ import {
   EnvWriter,
   EnvWriterLive,
 } from "./services/index.js";
-import type { DiffRow, EnvFile, PendingChange } from "./types.js";
+import type { EnvFile, PendingChange } from "./types.js";
 
 // CLI arguments: at least 2 .env file paths
 const filesArg = Args.path({ name: "files", exists: "yes" }).pipe(
@@ -41,7 +41,6 @@ const TERMINAL_RESTORE =
  */
 const renderApp = (
   envFiles: ReadonlyArray<EnvFile>,
-  diffRows: ReadonlyArray<DiffRow>,
   saveEffect: (
     changes: ReadonlyArray<PendingChange>
   ) => Promise<ReadonlyArray<EnvFile>>
@@ -107,7 +106,6 @@ const renderApp = (
     createRoot(renderer).render(
       <App
         initialFiles={envFiles}
-        initialDiffRows={diffRows}
         onSave={handleSave}
         onQuit={() => shutdown(0)}
       />
@@ -126,7 +124,7 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
     yield* Console.log(`Loading ${files.length} env files...`);
     let envFiles = yield* parser.parseFiles(files);
 
-    // Compute diff
+    // Compute initial stats
     const diffRows = yield* differ.computeDiff(envFiles);
     yield* Console.log(`Found ${diffRows.length} variables\n`);
 
@@ -142,8 +140,8 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
       return updated;
     };
 
-    // Render the TUI
-    yield* renderApp(envFiles, diffRows, saveEffect);
+    // Render the TUI (diff rows are now computed from files in the App)
+    yield* renderApp(envFiles, saveEffect);
 
     // Keep the process alive
     return yield* Effect.never;

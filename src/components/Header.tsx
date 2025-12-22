@@ -4,12 +4,12 @@
  */
 import { useAtomValue } from "jotai";
 import { Colors } from "../types.js";
-import { colWidthsAtom, filesAtom, selectedColAtom } from "../state/atoms.js";
+import { appStateAtom } from "../state/appState.js";
 
 export function Header() {
-  const files = useAtomValue(filesAtom);
-  const selectedCol = useAtomValue(selectedColAtom);
-  const colWidths = useAtomValue(colWidthsAtom);
+  const state = useAtomValue(appStateAtom);
+  const { files, selection, colWidths } = state;
+  const selectedCol = selection.col;
 
   const keyColWidth = colWidths[0] ?? 20;
 
@@ -34,12 +34,12 @@ export function Header() {
       {files.map((file, index) => {
         const isSelected = index === selectedCol;
         const varCount = file.variables.size;
-        const width = colWidths[index + 1] ?? 20; // +1 because colWidths[0] is key col
+        const width = colWidths[index + 1] ?? 20;
 
         return (
           <box
             key={file.path}
-            width={width + 1} // +1 for separator
+            width={width + 1}
             height={1}
             flexDirection="row"
           >

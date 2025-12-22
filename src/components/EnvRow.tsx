@@ -3,18 +3,12 @@
  * Layout: [Key/Status column] | [File A value] | [File B value]
  */
 import { useCallback, useRef } from "react";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import type { InputRenderable } from "@opentui/core";
 import type { DiffRow, VariableStatus } from "../types.js";
 import { Colors, getVariableStatus } from "../types.js";
 import { truncate } from "../utils/index.js";
-import {
-  colWidthsAtom,
-  editModeAtom,
-  pendingChangesAtom,
-  selectedColAtom,
-  selectedRowAtom,
-} from "../state/atoms.js";
+import { appStateAtom, pendingKey } from "../state/appState.js";
 
 interface EnvRowProps {
   readonly row: DiffRow;
@@ -41,11 +35,11 @@ export function EnvRow({
   onEditInput,
   onEditSubmit,
 }: EnvRowProps) {
-  const selectedRow = useAtomValue(selectedRowAtom);
-  const selectedCol = useAtomValue(selectedColAtom);
-  const pendingChanges = useAtomValue(pendingChangesAtom);
-  const colWidths = useAtomValue(colWidthsAtom);
-  const [editMode] = useAtom(editModeAtom);
+  const state = useAtomValue(appStateAtom);
+  const { selection, pending, colWidths, editMode } = state;
+  const selectedRow = selection.row;
+  const selectedCol = selection.col;
+
   const inputRef = useRef<InputRenderable>(null);
 
   const isSelectedRow = rowIndex === selectedRow;
@@ -55,23 +49,24 @@ export function EnvRow({
   const isEditingKey = editMode?.phase === "addKey" && isSelectedRow;
 
   // Find pending changes for this row
-  const pendingByFile = new Map<number, (typeof pendingChanges)[number]>();
-  for (const change of pendingChanges) {
-    if (change.key === row.key) {
-      pendingByFile.set(change.fileIndex, change);
+  const pendingByFile = new Map<number, { oldValue: string | null; newValue: string | null }>();
+  for (let i = 0; i < (row.values.length); i++) {
+    const pKey = pendingKey(row.key, i);
+    const change = pending.get(pKey);
+    if (change) {
+      pendingByFile.set(i, { oldValue: change.oldValue, newValue: change.newValue });
     }
   }
 
   // Compute effective values (original + pending changes) for status calculation
   const effectiveValues = row.values.map((value, i) => {
-    const pending = pendingByFile.get(i);
-    return pending !== undefined ? pending.newValue : value;
+    const pendingChange = pendingByFile.get(i);
+    return pendingChange !== undefined ? pendingChange.newValue : value;
   });
   const effectiveStatus = pendingByFile.size > 0 ? getVariableStatus(effectiveValues) : row.status;
   const icon = statusIcon[effectiveStatus];
   const color = statusColor[effectiveStatus];
 
-  // Has any pending change for this row?
   const hasAnyPending = pendingByFile.size > 0;
 
   const handlePaste = useCallback((e: { text: string }) => {
@@ -87,9 +82,7 @@ export function EnvRow({
       <box
         flexDirection="row"
         width="100%"
-        backgroundColor={
-          isSelectedRow ? Colors.selectedRowBg : Colors.background
-        }
+        backgroundColor={isSelectedRow ? Colors.selectedRowBg : Colors.background}
       >
         {/* Key/Status column (fixed left) */}
         <box
@@ -115,9 +108,7 @@ export function EnvRow({
             </box>
           ) : (
             <text>
-              <span fg={color}>
-                {icon}{" "}
-              </span>
+              <span fg={color}>{icon} </span>
               {isSelectedRow ? (
                 <b>
                   <span fg={Colors.primaryText}>
@@ -130,9 +121,7 @@ export function EnvRow({
                 </span>
               )}
               {hasAnyPending && !isEditingKey && (
-                <span fg={Colors.pendingChange}>
-                  {" "}✎
-                </span>
+                <span fg={Colors.pendingChange}> ✎</span>
               )}
             </text>
           )}
@@ -142,15 +131,13 @@ export function EnvRow({
         {row.values.map((value, fileIndex) => {
           const isSelectedCell = isSelectedRow && fileIndex === selectedCol;
           const isEditingThisCell = isEditingValue && isSelectedCell;
-          const pending = pendingByFile.get(fileIndex);
-          const hasPending = pending !== undefined;
-          const width = colWidths[fileIndex + 1] ?? 20; // +1 because colWidths[0] is key col
+          const pendingChange = pendingByFile.get(fileIndex);
+          const hasPending = pendingChange !== undefined;
+          const width = colWidths[fileIndex + 1] ?? 20;
 
-          const displayValue =
-            value === null ? "—" : value === "" ? "\"\"" : value;
-          const pendingValue = pending?.newValue;
+          const displayValue = value === null ? "—" : value === "" ? '""' : value;
+          const pendingValue = pendingChange?.newValue;
 
-          // Truncate based on actual cell width (minus padding)
           const maxLen = width - 2;
           const truncatedValue = truncate(displayValue, maxLen);
           const truncatedPending =
@@ -158,16 +145,12 @@ export function EnvRow({
               ? pendingValue === null
                 ? "—"
                 : pendingValue === ""
-                  ? "\"\""
+                  ? '""'
                   : truncate(pendingValue, maxLen)
               : undefined;
 
           return (
-            <box
-              key={fileIndex}
-              width={width + 1} // +1 for separator
-              flexDirection="row"
-            >
+            <box key={fileIndex} width={width + 1} flexDirection="row">
               {/* Separator */}
               <box width={1} backgroundColor={Colors.border} />
               <box
@@ -180,7 +163,6 @@ export function EnvRow({
                     ? { backgroundColor: Colors.pendingChangeBg }
                     : {})}
               >
-                {/* Value - show input when editing this cell */}
                 {isEditingThisCell ? (
                   <input
                     ref={inputRef}
@@ -195,11 +177,7 @@ export function EnvRow({
                   <text>
                     {hasPending ? (
                       <span
-                        fg={
-                          isSelectedCell
-                            ? Colors.selectedText
-                            : Colors.pendingChange
-                        }
+                        fg={isSelectedCell ? Colors.selectedText : Colors.pendingChange}
                       >
                         {truncatedPending}
                       </span>
@@ -209,8 +187,8 @@ export function EnvRow({
                           isSelectedCell
                             ? Colors.selectedText
                             : value === null
-                            ? Colors.missing
-                            : Colors.secondaryText
+                              ? Colors.missing
+                              : Colors.secondaryText
                         }
                       >
                         {truncatedValue}

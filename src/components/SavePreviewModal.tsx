@@ -59,28 +59,33 @@ export function SavePreviewModal({
               </b>
               <span fg={Colors.dimText}> ({fileChanges.length})</span>
             </text>
-            {fileChanges.slice(0, 3).map((change, i) => (
-              <box key={i} paddingLeft={2}>
-                <text>
-                  <span fg={Colors.dimText}>
-                    {change.newValue === null ? "−" : change.isNew ? "+" : "~"}{" "}
-                  </span>
-                  <span fg={Colors.primaryText}>{truncate(change.key, 20)}</span>
-                  {change.newValue === null ? (
-                    <span fg={Colors.dimText}> (deleted)</span>
-                  ) : (
-                    <>
-                      <span fg={Colors.dimText}>=</span>
-                      <span fg={Colors.pendingChange}>
-                        {change.newValue === ""
-                          ? "\"\""
-                          : truncate(change.newValue, 15)}
-                      </span>
-                    </>
-                  )}
-                </text>
-              </box>
-            ))}
+            {fileChanges.slice(0, 3).map((change, i) => {
+              // Determine if this is an addition (oldValue was null)
+              const isAddition = change.oldValue === null && change.newValue !== null;
+              const isDeletion = change.newValue === null;
+              const prefix = isDeletion ? "−" : isAddition ? "+" : "~";
+
+              return (
+                <box key={i} paddingLeft={2}>
+                  <text>
+                    <span fg={Colors.dimText}>{prefix} </span>
+                    <span fg={Colors.primaryText}>{truncate(change.key, 20)}</span>
+                    {isDeletion ? (
+                      <span fg={Colors.dimText}> (deleted)</span>
+                    ) : (
+                      <>
+                        <span fg={Colors.dimText}>=</span>
+                        <span fg={Colors.pendingChange}>
+                          {change.newValue === ""
+                            ? '""'
+                            : truncate(change.newValue, 15)}
+                        </span>
+                      </>
+                    )}
+                  </text>
+                </box>
+              );
+            })}
             {fileChanges.length > 3 && (
               <box paddingLeft={2}>
                 <text>

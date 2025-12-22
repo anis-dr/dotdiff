@@ -3,22 +3,18 @@
  * Displays old->new when pending changes exist
  */
 import { useAtomValue } from "jotai";
-import type { DiffRow, PendingChange } from "../types.js";
+import type { DiffRow } from "../types.js";
 import { Colors } from "../types.js";
-import {
-  filesAtom,
-  pendingChangesAtom,
-  selectedColAtom,
-} from "../state/atoms.js";
+import { appStateAtom, pendingKey } from "../state/appState.js";
 
 interface InspectorProps {
   readonly row: DiffRow | null;
 }
 
 export function Inspector({ row }: InspectorProps) {
-  const files = useAtomValue(filesAtom);
-  const selectedCol = useAtomValue(selectedColAtom);
-  const pendingChanges = useAtomValue(pendingChangesAtom);
+  const state = useAtomValue(appStateAtom);
+  const { files, selection, pending } = state;
+  const selectedCol = selection.col;
 
   if (!row) {
     return (
@@ -30,20 +26,15 @@ export function Inspector({ row }: InspectorProps) {
     );
   }
 
-  // Find pending changes for this row
-  const pendingByFile = new Map<number, PendingChange>();
-  for (const change of pendingChanges) {
-    if (change.key === row.key) {
-      pendingByFile.set(change.fileIndex, change);
-    }
-  }
+  // Find pending change for selected cell
+  const pKey = pendingKey(row.key, selectedCol);
+  const selectedPending = pending.get(pKey);
 
   const selectedFile = files[selectedCol];
-  const selectedValue = row.values[selectedCol] ?? null;
-  const selectedPending = pendingByFile.get(selectedCol);
+  const selectedValue: string | null = row.values[selectedCol] ?? null;
 
   const formatValue = (v: string | null): string =>
-    v === null ? "—" : v === "" ? "\"\"" : v;
+    v === null ? "—" : v === "" ? '""' : v;
 
   return (
     <box
@@ -83,9 +74,6 @@ export function Inspector({ row }: InspectorProps) {
             <span fg={Colors.pendingChange}>
               {formatValue(selectedPending.newValue)}
             </span>
-            {selectedPending.isNew && (
-              <span fg={Colors.identical}> (new)</span>
-            )}
             {selectedPending.newValue === null && (
               <span fg={Colors.missing}> (deleted)</span>
             )}
@@ -102,4 +90,3 @@ export function Inspector({ row }: InspectorProps) {
     </box>
   );
 }
-

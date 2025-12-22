@@ -4,20 +4,15 @@
 import { useAtomValue } from "jotai";
 import { Colors } from "../types.js";
 import { truncate, TRUNCATE_CLIPBOARD } from "../utils/index.js";
-import {
-  clipboardAtom,
-  messageAtom,
-  pendingChangesAtom,
-} from "../state/atoms.js";
+import { appStateAtom, pendingListAtom } from "../state/appState.js";
 
 export function Footer() {
-  const clipboard = useAtomValue(clipboardAtom);
-  const pendingChanges = useAtomValue(pendingChangesAtom);
-  const message = useAtomValue(messageAtom);
+  const state = useAtomValue(appStateAtom);
+  const pendingList = useAtomValue(pendingListAtom);
+  const { clipboard, message } = state;
 
-  const pendingCount = pendingChanges.length;
+  const pendingCount = pendingList.length;
 
-  // Truncate long clipboard values
   const clipboardDisplay = clipboard
     ? `${clipboard.key}=${truncate(clipboard.value, TRUNCATE_CLIPBOARD)}`
     : "empty";

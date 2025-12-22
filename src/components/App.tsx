@@ -1,27 +1,12 @@
 /**
- * App component - main TUI with Jotai state management and keyboard handling
+ * App component - main TUI with unified state management
  */
 import { useCallback, useEffect, useMemo } from "react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useTerminalDimensions } from "@opentui/react";
-import type { DiffRow, EnvFile, ModalState, PendingChange } from "../types.js";
-import { Colors, getVariableStatus } from "../types.js";
-import {
-  colWidthsAtom,
-  diffRowsAtom,
-  filesAtom,
-  messageAtom,
-  modalStateAtom,
-} from "../state/atoms.js";
-import {
-  usePendingChanges,
-  useNavigation,
-  useCurrentRow,
-  useClipboard,
-  useEditMode,
-  useKeyBindings,
-  useSearch,
-} from "../hooks/index.js";
+import type { EnvFile, PendingChange } from "../types.js";
+import { Colors } from "../types.js";
+import { useAppState } from "../hooks/useAppState.js";
+import { useKeyBindings } from "../hooks/useKeyBindings.js";
 import { Header } from "./Header.js";
 import { EnvRow } from "./EnvRow.js";
 import { Footer } from "./Footer.js";
@@ -33,50 +18,45 @@ import { Inspector } from "./Inspector.js";
 
 interface AppProps {
   readonly initialFiles: ReadonlyArray<EnvFile>;
-  readonly initialDiffRows: ReadonlyArray<DiffRow>;
   readonly onSave: (
     changes: ReadonlyArray<PendingChange>
   ) => Promise<ReadonlyArray<EnvFile>>;
   readonly onQuit: () => void;
 }
 
-export function App({
-  initialFiles,
-  initialDiffRows,
-  onSave,
-  onQuit,
-}: AppProps) {
+export function App({ initialFiles, onSave, onQuit }: AppProps) {
   const { width: terminalWidth } = useTerminalDimensions();
 
-  // Core state
-  const [files, setFiles] = useAtom(filesAtom);
-  const [diffRows, setDiffRows] = useAtom(diffRowsAtom);
-  const [message, setMessage] = useAtom(messageAtom);
-  const setColWidths = useSetAtom(colWidthsAtom);
-
-  const fileCount = files.length;
-  const rowCount = diffRows.length;
-
-  // Custom hooks
-  const pendingChangesHook = usePendingChanges();
-  const { pendingChanges, clearChanges, undoLast, upsertChange, removeChange, removeChangesForKey, addChanges, findChange } =
-    pendingChangesHook;
-
-  const navigation = useNavigation(rowCount, fileCount);
-  const { selectedRow, selectedCol, setSelectedRow } = navigation;
-
-  const { currentRow } = useCurrentRow();
-
-  const clipboardHook = useClipboard(pendingChangesHook);
-  const editModeHook = useEditMode(pendingChangesHook);
-  const { editMode, handleEditInput, cancelEdit } = editModeHook;
-
-  // Search state
-  const searchHook = useSearch();
+  // Get all state and actions from the central hook
+  const app = useAppState();
   const {
-    isSearchActive,
-    searchQuery,
-    matchCount,
+    state,
+    diffRows,
+    currentRow,
+    stats,
+    pendingList,
+    filteredRowIndices,
+    fileCount,
+    rowCount,
+    setFiles,
+    upsertChange,
+    removeChange,
+    removeChangesForKey,
+    clearChanges,
+    undoLast,
+    findChange,
+    addChanges,
+    setSelection,
+    moveUp,
+    moveDown,
+    moveLeft,
+    moveRight,
+    cycleColumn,
+    enterEditMode: enterEditModeAction,
+    enterAddMode,
+    updateEditInput,
+    exitEditMode,
+    setClipboard,
     openSearch,
     closeSearch,
     setSearchQuery,
@@ -84,29 +64,34 @@ export function App({
     prevMatch,
     nextDiff,
     prevDiff,
-  } = searchHook;
+    openModal,
+    closeModal,
+    showMessage,
+    setColWidths,
+    getOriginalValue,
+    applyPendingToFiles,
+  } = app;
 
-  // Modal state
-  const [modalState, setModalState] = useAtom(modalStateAtom);
+  const { editMode, clipboard, search, modal, selection } = state;
+  const selectedCol = selection.col;
 
-  // Initialize atoms from props on mount
+  // Initialize files on mount
   useEffect(() => {
     setFiles(initialFiles);
-    setDiffRows(initialDiffRows);
-  }, [initialFiles, initialDiffRows, setFiles, setDiffRows]);
+  }, [initialFiles, setFiles]);
 
-  // Calculate and set column widths (2-file optimized layout)
-  // Layout: [Key column] | [File A value] | [File B value]
+  // Calculate column widths (2-file optimized layout)
   const colWidths = useMemo(() => {
-    // Key column takes ~35% of width, value columns split the rest
-    const separators = 2; // Two separators: key|valA|valB
+    const separators = 2;
     const available = Math.max(0, terminalWidth - separators);
     const keyColWidth = Math.max(20, Math.floor(available * 0.35));
-    const valueWidth = Math.max(15, Math.floor((available - keyColWidth) / Math.max(1, fileCount)));
+    const valueWidth = Math.max(
+      15,
+      Math.floor((available - keyColWidth) / Math.max(1, fileCount))
+    );
     const used = keyColWidth + valueWidth * fileCount;
     const remainder = Math.max(0, available - used);
 
-    // Return [keyColWidth, ...valueWidths] - last value col gets remainder
     return [
       keyColWidth,
       ...Array.from({ length: fileCount }, (_, i) =>
@@ -119,33 +104,61 @@ export function App({
     setColWidths(colWidths);
   }, [colWidths, setColWidths]);
 
-  // Show message with auto-clear
-  const showMessage = useCallback(
-    (msg: string) => {
-      setMessage(msg);
-      setTimeout(() => setMessage(null), 2000);
-    },
-    [setMessage]
-  );
-
-  // Action handlers that use hooks and show messages
+  // Action handlers
   const handleCopy = useCallback(() => {
     if (!currentRow) return;
-    const msg = clipboardHook.copy(currentRow);
-    if (msg) showMessage(msg);
-  }, [currentRow, clipboardHook, showMessage]);
+    const value = currentRow.values[selectedCol];
+    if (value === null || value === undefined) {
+      showMessage("⚠ Nothing to copy");
+      return;
+    }
+    setClipboard({ key: currentRow.key, value });
+    showMessage(`📋 Copied ${currentRow.key}`);
+  }, [currentRow, selectedCol, setClipboard, showMessage]);
 
   const handlePaste = useCallback(() => {
-    if (!currentRow) return;
-    const msg = clipboardHook.paste(currentRow);
-    if (msg) showMessage(msg);
-  }, [currentRow, clipboardHook, showMessage]);
+    if (!currentRow || !clipboard) {
+      showMessage("⚠ Clipboard empty");
+      return;
+    }
+    const originalValue = getOriginalValue(currentRow.key, selectedCol);
+    if (clipboard.value === originalValue) {
+      showMessage("⚠ Same value");
+      return;
+    }
+    upsertChange({
+      key: currentRow.key,
+      fileIndex: selectedCol,
+      oldValue: originalValue,
+      newValue: clipboard.value,
+    });
+    showMessage(`📋 Pasted to ${currentRow.key}`);
+  }, [currentRow, clipboard, selectedCol, getOriginalValue, upsertChange, showMessage]);
 
   const handlePasteAll = useCallback(() => {
-    if (!currentRow) return;
-    const msg = clipboardHook.pasteAll(currentRow, fileCount);
-    if (msg) showMessage(msg);
-  }, [currentRow, clipboardHook, fileCount, showMessage]);
+    if (!currentRow || !clipboard) {
+      showMessage("⚠ Clipboard empty");
+      return;
+    }
+    const changes: PendingChange[] = [];
+    for (let i = 0; i < fileCount; i++) {
+      const originalValue = getOriginalValue(currentRow.key, i);
+      if (clipboard.value !== originalValue) {
+        changes.push({
+          key: currentRow.key,
+          fileIndex: i,
+          oldValue: originalValue,
+          newValue: clipboard.value,
+        });
+      }
+    }
+    if (changes.length === 0) {
+      showMessage("⚠ All files already have this value");
+      return;
+    }
+    addChanges(changes);
+    showMessage(`📋 Pasted to ${changes.length} files`);
+  }, [currentRow, clipboard, fileCount, getOriginalValue, addChanges, showMessage]);
 
   const handleRevert = useCallback(() => {
     if (!currentRow) return;
@@ -166,53 +179,99 @@ export function App({
   }, [undoLast, showMessage]);
 
   const handleUndoAll = useCallback(() => {
-    if (pendingChanges.length === 0) {
+    if (pendingList.length === 0) {
       showMessage("⚠ Nothing to undo");
       return;
     }
     clearChanges();
     showMessage("↩ All changes undone");
-  }, [pendingChanges.length, clearChanges, showMessage]);
+  }, [pendingList.length, clearChanges, showMessage]);
 
   const handleEnterEditMode = useCallback(() => {
     if (!currentRow) return;
-    editModeHook.enterEditMode(currentRow);
-  }, [currentRow, editModeHook]);
+    const value = currentRow.values[selectedCol];
+    enterEditModeAction(value ?? "");
+  }, [currentRow, selectedCol, enterEditModeAction]);
+
+  const handleEditInput = useCallback(
+    (value: string) => {
+      updateEditInput(value);
+    },
+    [updateEditInput]
+  );
 
   const handleSaveEdit = useCallback(
     (submittedValue?: string) => {
-      const msg = editModeHook.saveEdit(currentRow, submittedValue);
-      if (msg) showMessage(msg);
+      if (!currentRow || !editMode) {
+        exitEditMode();
+        return;
+      }
+
+      const inputValue = submittedValue ?? editMode.inputValue;
+
+      // If user didn't type anything, just cancel
+      if (!editMode.dirty) {
+        exitEditMode();
+        showMessage("⊘ Edit cancelled");
+        return;
+      }
+
+      // Determine the new value
+      let newValue: string | null;
+      const trimmed = inputValue.trim();
+      if (trimmed === "<null>" || trimmed === "<unset>") {
+        newValue = null; // Explicit deletion
+      } else if (trimmed === '""' || trimmed === "''") {
+        newValue = ""; // Explicit empty string
+      } else {
+        newValue = inputValue; // Use as-is (including empty string)
+      }
+
+      const originalValue = getOriginalValue(currentRow.key, selectedCol);
+
+      // If value unchanged from original, remove any pending change
+      if (newValue === originalValue) {
+        removeChange(currentRow.key, selectedCol);
+        exitEditMode();
+        showMessage("⊘ No change");
+        return;
+      }
+
+      upsertChange({
+        key: currentRow.key,
+        fileIndex: selectedCol,
+        oldValue: originalValue,
+        newValue,
+      });
+      exitEditMode();
+      showMessage("✓ Value updated");
     },
-    [currentRow, editModeHook, showMessage]
+    [currentRow, editMode, selectedCol, getOriginalValue, removeChange, upsertChange, exitEditMode, showMessage]
   );
 
   const handleCancelEdit = useCallback(() => {
-    const msg = cancelEdit();
-    showMessage(msg);
-  }, [cancelEdit, showMessage]);
+    exitEditMode();
+    showMessage("⊘ Edit cancelled");
+  }, [exitEditMode, showMessage]);
 
   const handleDeleteVariable = useCallback(() => {
     if (!currentRow) return;
-    const originalValue = currentRow.values[selectedCol] ?? null;
+    const originalValue = getOriginalValue(currentRow.key, selectedCol);
     const pending = findChange(currentRow.key, selectedCol);
     const effectiveValue = pending ? pending.newValue : originalValue;
 
-    // If it's already missing (and no pending value), nothing to delete
     if (effectiveValue === null) {
       showMessage("⚠ Already missing in this file");
       return;
     }
 
-    // If the value only exists due to a pending change and original was missing,
-    // deleting should just revert the pending change.
     if (originalValue === null) {
+      // Value only exists due to pending change, revert it
       removeChange(currentRow.key, selectedCol);
       showMessage("↩ Reverted to missing");
       return;
     }
 
-    // Otherwise mark for deletion
     upsertChange({
       key: currentRow.key,
       fileIndex: selectedCol,
@@ -220,28 +279,26 @@ export function App({
       newValue: null,
     });
     showMessage(`✗ Marked ${currentRow.key} for deletion`);
-  }, [currentRow, selectedCol, findChange, removeChange, upsertChange, showMessage]);
+  }, [currentRow, selectedCol, getOriginalValue, findChange, removeChange, upsertChange, showMessage]);
 
   const handleDeleteAll = useCallback(() => {
     if (!currentRow) return;
 
     const newChanges: PendingChange[] = [];
     for (let i = 0; i < fileCount; i++) {
-      const currentValue = currentRow.values[i] ?? null;
-      if (currentValue !== null) {
+      const originalValue = getOriginalValue(currentRow.key, i);
+      if (originalValue !== null) {
         newChanges.push({
           key: currentRow.key,
           fileIndex: i,
-          oldValue: currentValue,
+          oldValue: originalValue,
           newValue: null,
         });
       }
     }
 
-    // If there are no original values to delete, we may still need to revert
-    // pending values that were added to previously-missing files.
     if (newChanges.length === 0) {
-      const hadPendingForKey = pendingChanges.some((c) => c.key === currentRow.key);
+      const hadPendingForKey = pendingList.some((c) => c.key === currentRow.key);
       if (hadPendingForKey) {
         removeChangesForKey(currentRow.key);
         showMessage("↩ Reverted pending values (now missing everywhere)");
@@ -251,83 +308,48 @@ export function App({
       return;
     }
 
-    // Remove existing changes for this key (including pending adds), then apply deletions
     removeChangesForKey(currentRow.key);
     addChanges(newChanges);
-    showMessage(
-      `✗ Marked ${currentRow.key} for deletion in ${newChanges.length} files`
-    );
-  }, [currentRow, fileCount, pendingChanges, removeChangesForKey, addChanges, showMessage]);
+    showMessage(`✗ Marked ${currentRow.key} for deletion in ${newChanges.length} files`);
+  }, [currentRow, fileCount, getOriginalValue, pendingList, removeChangesForKey, addChanges, showMessage]);
 
   // Open save preview modal
   const handleSave = useCallback(() => {
-    if (pendingChanges.length === 0) {
+    if (pendingList.length === 0) {
       showMessage("⚠ No changes to save");
       return;
     }
-    setModalState({ type: "save" });
-  }, [pendingChanges.length, showMessage, setModalState]);
+    openModal({ type: "save" });
+  }, [pendingList.length, showMessage, openModal]);
 
   // Actually perform the save
   const doSave = useCallback(async () => {
     try {
-      const updatedFiles = await onSave(pendingChanges);
+      const updatedFiles = await onSave(pendingList);
       setFiles(updatedFiles);
-
-      setDiffRows((rows) => {
-        const newRows = rows.map((row) => {
-          const rowChanges = pendingChanges.filter((c) => c.key === row.key);
-          if (rowChanges.length === 0) return row;
-
-          const newValues = [...row.values];
-          for (const change of rowChanges) {
-            newValues[change.fileIndex] = change.newValue;
-          }
-
-          const status = getVariableStatus(newValues);
-          return { ...row, values: newValues, status };
-        });
-
-        return newRows.filter((row) => row.values.some((v) => v !== null));
-      });
-
       clearChanges();
-      setModalState(null);
+      closeModal();
       showMessage("💾 Saved!");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showMessage(`⚠ Save failed: ${msg}`);
     }
-  }, [
-    pendingChanges,
-    onSave,
-    setFiles,
-    setDiffRows,
-    clearChanges,
-    setModalState,
-    showMessage,
-  ]);
+  }, [pendingList, onSave, setFiles, clearChanges, closeModal, showMessage]);
 
-  // Open quit confirmation modal if dirty, otherwise quit
+  // Open quit confirmation modal if dirty
   const handleQuit = useCallback(() => {
-    if (pendingChanges.length > 0) {
-      setModalState({ type: "quit" });
+    if (pendingList.length > 0) {
+      openModal({ type: "quit" });
     } else {
       onQuit();
     }
-  }, [pendingChanges.length, setModalState, onQuit]);
+  }, [pendingList.length, openModal, onQuit]);
 
-  // Open help modal
   const handleHelp = useCallback(() => {
-    setModalState({ type: "help" });
-  }, [setModalState]);
+    openModal({ type: "help" });
+  }, [openModal]);
 
-  // Close modal
-  const closeModal = useCallback(() => {
-    setModalState(null);
-  }, [setModalState]);
-
-  // Directional sync: copy left value to right
+  // Directional sync
   const handleSyncToRight = useCallback(() => {
     if (!currentRow || fileCount !== 2) return;
     const leftValue = currentRow.values[0] ?? null;
@@ -343,13 +365,12 @@ export function App({
     upsertChange({
       key: currentRow.key,
       fileIndex: 1,
-      oldValue: rightValue,
+      oldValue: getOriginalValue(currentRow.key, 1),
       newValue: leftValue,
     });
     showMessage("→ Synced to right");
-  }, [currentRow, fileCount, upsertChange, showMessage]);
+  }, [currentRow, fileCount, getOriginalValue, upsertChange, showMessage]);
 
-  // Directional sync: copy right value to left
   const handleSyncToLeft = useCallback(() => {
     if (!currentRow || fileCount !== 2) return;
     const rightValue = currentRow.values[1] ?? null;
@@ -365,15 +386,30 @@ export function App({
     upsertChange({
       key: currentRow.key,
       fileIndex: 0,
-      oldValue: leftValue,
+      oldValue: getOriginalValue(currentRow.key, 0),
       newValue: rightValue,
     });
     showMessage("← Synced to left");
-  }, [currentRow, fileCount, upsertChange, showMessage]);
+  }, [currentRow, fileCount, getOriginalValue, upsertChange, showMessage]);
+
+  // Search handlers
+  const handleSearchInput = useCallback(
+    (value: string) => setSearchQuery(value),
+    [setSearchQuery]
+  );
+
+  const handleSearchSubmit = useCallback(() => {
+    nextMatch();
+    closeSearch();
+  }, [nextMatch, closeSearch]);
 
   // Keyboard bindings
-  useKeyBindings(editMode, isSearchActive, modalState, {
-    ...navigation,
+  useKeyBindings(editMode, search.active, modal, {
+    moveUp,
+    moveDown,
+    moveLeft,
+    moveRight,
+    cycleColumn,
     copy: handleCopy,
     paste: handlePaste,
     pasteAll: handlePasteAll,
@@ -382,12 +418,11 @@ export function App({
     undoAll: handleUndoAll,
     save: handleSave,
     enterEditMode: handleEnterEditMode,
-    enterAddMode: editModeHook.enterAddMode,
+    enterAddMode,
     deleteVariable: handleDeleteVariable,
     deleteAll: handleDeleteAll,
     quit: handleQuit,
     cancelEdit: handleCancelEdit,
-    // New actions
     openSearch,
     closeSearch,
     nextMatch,
@@ -397,36 +432,13 @@ export function App({
     openHelp: handleHelp,
     closeModal,
     confirmModal: () => {
-      if (modalState?.type === "quit") onQuit();
-      else if (modalState?.type === "save") doSave();
+      if (modal?.type === "quit") onQuit();
+      else if (modal?.type === "save") doSave();
       else closeModal();
     },
     syncToLeft: handleSyncToLeft,
     syncToRight: handleSyncToRight,
   });
-
-  // Count stats in single pass
-  const statusCounts = useMemo(() => {
-    const counts = { identical: 0, different: 0, missing: 0 };
-    for (const row of diffRows) {
-      counts[row.status]++;
-    }
-    return counts;
-  }, [diffRows]);
-
-  // Handle search input
-  const handleSearchInput = useCallback(
-    (value: string) => {
-      setSearchQuery(value);
-    },
-    [setSearchQuery]
-  );
-
-  const handleSearchSubmit = useCallback(() => {
-    // When submitting search, jump to next match and close search input
-    nextMatch();
-    closeSearch();
-  }, [nextMatch, closeSearch]);
 
   return (
     <box
@@ -449,28 +461,28 @@ export function App({
             <span fg={Colors.selectedBg}>envy</span>
           </b>
           <span fg={Colors.dimText}> │ {fileCount} files</span>
-          {isSearchActive && searchQuery && (
+          {search.active && search.query && (
             <>
               <span fg={Colors.dimText}> │ </span>
-              <span fg={Colors.selectedBg}>/{searchQuery}</span>
-              <span fg={Colors.dimText}> ({matchCount})</span>
+              <span fg={Colors.selectedBg}>/{search.query}</span>
+              <span fg={Colors.dimText}> ({filteredRowIndices.length})</span>
             </>
           )}
         </text>
         <text>
-          <span fg={Colors.identical}>● {statusCounts.identical}</span>
+          <span fg={Colors.identical}>● {stats.identical}</span>
           <span fg={Colors.dimText}> </span>
-          <span fg={Colors.different}>◐ {statusCounts.different}</span>
+          <span fg={Colors.different}>◐ {stats.different}</span>
           <span fg={Colors.dimText}> </span>
-          <span fg={Colors.missing}>○ {statusCounts.missing}</span>
+          <span fg={Colors.missing}>○ {stats.missing}</span>
         </text>
       </box>
 
-      {/* Search overlay (when active) */}
-      {isSearchActive && (
+      {/* Search overlay */}
+      {search.active && (
         <SearchOverlay
-          query={searchQuery}
-          matchCount={matchCount}
+          query={search.query}
+          matchCount={filteredRowIndices.length}
           totalCount={rowCount}
           onInput={handleSearchInput}
           onSubmit={handleSearchSubmit}
@@ -483,7 +495,7 @@ export function App({
 
       {/* Main diff view */}
       <box flexDirection="column" flexGrow={1} overflow="hidden">
-        <scrollbox focused={!editMode && !isSearchActive && !modalState} style={{ flexGrow: 1 }}>
+        <scrollbox focused={!editMode && !search.active && !modal} style={{ flexGrow: 1 }}>
           {diffRows.map((row, index) => (
             <EnvRow
               key={row.key || `new-${index}`}
@@ -496,25 +508,25 @@ export function App({
         </scrollbox>
       </box>
 
-      {/* Inspector - shows full values and old->new for selected row */}
+      {/* Inspector */}
       <Inspector row={currentRow} />
 
-      {/* Footer with status and keybindings */}
+      {/* Footer */}
       <Footer />
 
       {/* Modals */}
-      {modalState?.type === "help" && <HelpOverlay onClose={closeModal} />}
-      {modalState?.type === "quit" && (
+      {modal?.type === "help" && <HelpOverlay onClose={closeModal} />}
+      {modal?.type === "quit" && (
         <QuitConfirmModal
-          pendingCount={pendingChanges.length}
+          pendingCount={pendingList.length}
           onConfirm={onQuit}
           onCancel={closeModal}
         />
       )}
-      {modalState?.type === "save" && (
+      {modal?.type === "save" && (
         <SavePreviewModal
-          files={files}
-          changes={pendingChanges}
+          files={state.files}
+          changes={pendingList}
           onConfirm={doSave}
           onCancel={closeModal}
         />

@@ -31,7 +31,6 @@ export interface PendingChange {
   readonly fileIndex: number;
   readonly oldValue: string | null;
   readonly newValue: string | null; // null = deletion
-  readonly isNew?: boolean; // true = adding new variable
 }
 
 /** Edit mode state */
@@ -55,16 +54,6 @@ export type ModalType = "quit" | "save" | "help";
 export interface ModalState {
   readonly type: ModalType;
   readonly data?: unknown; // Optional data for the modal (e.g., save preview)
-}
-
-/** Application state */
-export interface AppState {
-  readonly files: ReadonlyArray<EnvFile>;
-  readonly diffRows: ReadonlyArray<DiffRow>;
-  readonly selectedRow: number;
-  readonly selectedCol: number;
-  readonly clipboard: Clipboard | null;
-  readonly pendingChanges: ReadonlyArray<PendingChange>;
 }
 
 /** Determine the status of a variable across all files */
