@@ -203,3 +203,18 @@ export function patchEnvContent(
   return applyEnvChanges(lines, changes, additions);
 }
 
+/**
+ * Parse .env file content into a key-value Map
+ * This is a convenience wrapper around parseEnvLines for cases where
+ * you only need the variables without line-by-line structure.
+ */
+export function parseEnvToMap(content: string): Map<string, string> {
+  const variables = new Map<string, string>();
+  for (const line of parseEnvLines(content)) {
+    if (line.type === "assignment" && line.key !== undefined && line.value !== undefined) {
+      variables.set(line.key, line.value);
+    }
+  }
+  return variables;
+}
+

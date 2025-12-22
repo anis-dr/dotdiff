@@ -9,9 +9,10 @@ import { appStateAtom, pendingListAtom } from "../state/appState.js";
 export function Footer() {
   const state = useAtomValue(appStateAtom);
   const pendingList = useAtomValue(pendingListAtom);
-  const { clipboard, message } = state;
+  const { clipboard, message, conflicts } = state;
 
   const pendingCount = pendingList.length;
+  const conflictCount = conflicts.size;
 
   const clipboardDisplay = clipboard
     ? `${clipboard.key}=${truncate(clipboard.value, TRUNCATE_CLIPBOARD)}`
@@ -50,6 +51,17 @@ export function Footer() {
             )}
           </text>
         </box>
+
+        {/* Conflicts */}
+        {conflictCount > 0 && (
+          <box paddingRight={2}>
+            <text>
+              <span fg={Colors.dimText}>│ </span>
+              <span fg={Colors.missing}>⚠ {conflictCount}</span>
+              <span fg={Colors.dimText}> conflict{conflictCount !== 1 ? "s" : ""}</span>
+            </text>
+          </box>
+        )}
 
         {/* Message */}
         {message && (

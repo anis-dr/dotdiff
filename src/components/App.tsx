@@ -16,15 +16,20 @@ import { SavePreviewModal } from "./SavePreviewModal.js";
 import { SearchOverlay } from "./SearchOverlay.js";
 import { Inspector } from "./Inspector.js";
 
+/** Callback type for file change notifications */
+type FileChangeCallback = (fileIndex: number, newVars: ReadonlyMap<string, string>) => void;
+
 interface AppProps {
   readonly initialFiles: ReadonlyArray<EnvFile>;
   readonly onSave: (
     changes: ReadonlyArray<PendingChange>
   ) => Promise<ReadonlyArray<EnvFile>>;
   readonly onQuit: () => void;
+  /** Register callback to receive file change events from the watcher */
+  readonly onRegisterFileChange?: (cb: FileChangeCallback) => void;
 }
 
-export function App({ initialFiles, onSave, onQuit }: AppProps) {
+export function App({ initialFiles, onSave, onQuit, onRegisterFileChange }: AppProps) {
   const { width: terminalWidth } = useTerminalDimensions();
 
   // Get all state and actions from the central hook
@@ -46,7 +51,6 @@ export function App({ initialFiles, onSave, onQuit }: AppProps) {
     undoLast,
     findChange,
     addChanges,
-    setSelection,
     moveUp,
     moveDown,
     moveLeft,
@@ -69,7 +73,7 @@ export function App({ initialFiles, onSave, onQuit }: AppProps) {
     showMessage,
     setColWidths,
     getOriginalValue,
-    applyPendingToFiles,
+    updateFileFromDisk,
   } = app;
 
   const { editMode, clipboard, search, modal, selection } = state;
@@ -79,6 +83,19 @@ export function App({ initialFiles, onSave, onQuit }: AppProps) {
   useEffect(() => {
     setFiles(initialFiles);
   }, [initialFiles, setFiles]);
+
+  // Register callback for file watcher events
+  useEffect(() => {
+    if (onRegisterFileChange) {
+      onRegisterFileChange((fileIndex, newVars) => {
+        updateFileFromDisk(fileIndex, newVars);
+        // Show a message if there are new conflicts
+        const conflictCount = state.conflicts.size;
+        // We'll check after update - for now just show refresh message
+        showMessage(`↻ ${state.files[fileIndex]?.filename || 'File'} updated`);
+      });
+    }
+  }, [onRegisterFileChange, updateFileFromDisk, showMessage, state.conflicts.size, state.files]);
 
   // Calculate column widths (2-file optimized layout)
   const colWidths = useMemo(() => {

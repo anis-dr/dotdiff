@@ -35,7 +35,7 @@ export interface UseAppState {
 
   // Files
   setFiles: (files: ReadonlyArray<EnvFile>) => void;
-  applyPendingToFiles: () => void;
+  updateFileFromDisk: (fileIndex: number, newVariables: ReadonlyMap<string, string>) => void;
 
   // Pending Changes
   upsertChange: (change: PendingChange) => void;
@@ -47,7 +47,6 @@ export interface UseAppState {
   addChanges: (changes: ReadonlyArray<PendingChange>) => void;
 
   // Selection
-  setSelection: (row: number, col: number) => void;
   moveUp: () => void;
   moveDown: () => void;
   moveLeft: () => void;
@@ -62,7 +61,6 @@ export interface UseAppState {
 
   // Clipboard
   setClipboard: (clipboard: Clipboard) => void;
-  clearClipboard: () => void;
 
   // Search
   openSearch: () => void;
@@ -78,14 +76,12 @@ export interface UseAppState {
   closeModal: () => void;
 
   // Message
-  setMessage: (message: string | null) => void;
   showMessage: (message: string, durationMs?: number) => void;
 
   // Layout
   setColWidths: (colWidths: ReadonlyArray<number>) => void;
 
   // Value helpers
-  getEffectiveValue: (varKey: string, fileIndex: number) => string | null;
   getOriginalValue: (varKey: string, fileIndex: number) => string | null;
 }
 
@@ -105,8 +101,9 @@ export function useAppState(): UseAppState {
     [setState]
   );
 
-  const applyPendingToFiles = useCallback(
-    () => setState(A.applyPendingToFiles),
+  const updateFileFromDisk = useCallback(
+    (fileIndex: number, newVariables: ReadonlyMap<string, string>) =>
+      setState((s) => A.updateFileFromDisk(s, fileIndex, newVariables)),
     [setState]
   );
 
@@ -156,11 +153,6 @@ export function useAppState(): UseAppState {
   );
 
   // Selection actions
-  const setSelection = useCallback(
-    (row: number, col: number) => setState((s) => A.setSelection(s, row, col)),
-    [setState]
-  );
-
   const moveUp = useCallback(
     () => setState(A.moveUp),
     [setState]
@@ -210,11 +202,6 @@ export function useAppState(): UseAppState {
   // Clipboard actions
   const setClipboard = useCallback(
     (clipboard: Clipboard) => setState((s) => A.setClipboard(s, clipboard)),
-    [setState]
-  );
-
-  const clearClipboard = useCallback(
-    () => setState(A.clearClipboard),
     [setState]
   );
 
@@ -296,11 +283,6 @@ export function useAppState(): UseAppState {
   );
 
   // Message actions
-  const setMessageAction = useCallback(
-    (message: string | null) => setState((s) => A.setMessage(s, message)),
-    [setState]
-  );
-
   const showMessage = useCallback(
     (message: string, durationMs = 2000) => {
       setState((s) => A.setMessage(s, message));
@@ -325,12 +307,6 @@ export function useAppState(): UseAppState {
   );
 
   // Value helpers
-  const getEffectiveValue = useCallback(
-    (varKey: string, fileIndex: number) =>
-      A.getEffectiveValue(state, varKey, fileIndex),
-    [state]
-  );
-
   const getOriginalValue = useCallback(
     (varKey: string, fileIndex: number) =>
       A.getOriginalValue(state, varKey, fileIndex),
@@ -348,7 +324,7 @@ export function useAppState(): UseAppState {
       fileCount,
       rowCount,
       setFiles,
-      applyPendingToFiles,
+      updateFileFromDisk,
       upsertChange,
       removeChange,
       removeChangesForKey,
@@ -356,7 +332,6 @@ export function useAppState(): UseAppState {
       undoLast,
       findChange,
       addChanges,
-      setSelection,
       moveUp,
       moveDown,
       moveLeft,
@@ -367,7 +342,6 @@ export function useAppState(): UseAppState {
       updateEditInput,
       exitEditMode,
       setClipboard,
-      clearClipboard,
       openSearch,
       closeSearch,
       setSearchQuery,
@@ -377,10 +351,8 @@ export function useAppState(): UseAppState {
       prevDiff,
       openModal,
       closeModal,
-      setMessage: setMessageAction,
       showMessage,
       setColWidths,
-      getEffectiveValue,
       getOriginalValue,
     }),
     [
@@ -393,7 +365,7 @@ export function useAppState(): UseAppState {
       fileCount,
       rowCount,
       setFiles,
-      applyPendingToFiles,
+      updateFileFromDisk,
       upsertChange,
       removeChange,
       removeChangesForKey,
@@ -401,7 +373,6 @@ export function useAppState(): UseAppState {
       undoLast,
       findChange,
       addChanges,
-      setSelection,
       moveUp,
       moveDown,
       moveLeft,
@@ -412,7 +383,6 @@ export function useAppState(): UseAppState {
       updateEditInput,
       exitEditMode,
       setClipboard,
-      clearClipboard,
       openSearch,
       closeSearch,
       setSearchQuery,
@@ -422,10 +392,8 @@ export function useAppState(): UseAppState {
       prevDiff,
       openModal,
       closeModal,
-      setMessageAction,
       showMessage,
       setColWidths,
-      getEffectiveValue,
       getOriginalValue,
     ]
   );

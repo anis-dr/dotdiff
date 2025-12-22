@@ -24,15 +24,6 @@ import { getVariableStatus } from "../types.js";
 export const pendingKey = (varKey: string, fileIndex: number): string =>
   `${varKey}:${fileIndex}`;
 
-/** Parse a pending key back to its components */
-export const parsePendingKey = (key: string): { varKey: string; fileIndex: number } => {
-  const lastColon = key.lastIndexOf(":");
-  return {
-    varKey: key.slice(0, lastColon),
-    fileIndex: parseInt(key.slice(lastColon + 1), 10),
-  };
-};
-
 // =============================================================================
 // App State Type
 // =============================================================================
@@ -43,6 +34,9 @@ export interface AppState {
 
   // Pending changes - keyed by "${varKey}:${fileIndex}"
   readonly pending: ReadonlyMap<string, PendingChange>;
+
+  // Conflicts - set of pendingKey strings where disk value changed
+  readonly conflicts: ReadonlySet<string>;
 
   // UI State
   readonly selection: {
@@ -66,6 +60,7 @@ export interface AppState {
 export const initialAppState: AppState = {
   files: [],
   pending: new Map(),
+  conflicts: new Set(),
   selection: { row: 0, col: 0 },
   editMode: null,
   clipboard: null,
@@ -136,18 +131,8 @@ export const effectiveDiffRowsAtom = atom((get): ReadonlyArray<DiffRow> => {
     rows.push({ key, values, status });
   }
 
-  // Sort: missing first, then different, then identical; alphabetically within each
-  const statusOrder: Record<VariableStatus, number> = {
-    missing: 0,
-    different: 1,
-    identical: 2,
-  };
-
-  rows.sort((a, b) => {
-    const orderDiff = statusOrder[a.status] - statusOrder[b.status];
-    if (orderDiff !== 0) return orderDiff;
-    return a.key.toLowerCase().localeCompare(b.key.toLowerCase());
-  });
+  // Sort alphabetically by key (stable order - rows don't jump when editing)
+  rows.sort((a, b) => a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
 
   return rows;
 });
@@ -216,4 +201,6 @@ export const rowCountAtom = atom((get): number => {
   const rows = get(effectiveDiffRowsAtom);
   return rows.length;
 });
+
+
 

@@ -36,7 +36,7 @@ export function EnvRow({
   onEditSubmit,
 }: EnvRowProps) {
   const state = useAtomValue(appStateAtom);
-  const { selection, pending, colWidths, editMode } = state;
+  const { selection, pending, conflicts, colWidths, editMode } = state;
   const selectedRow = selection.row;
   const selectedCol = selection.col;
 
@@ -68,6 +68,11 @@ export function EnvRow({
   const color = statusColor[effectiveStatus];
 
   const hasAnyPending = pendingByFile.size > 0;
+
+  // Check for conflicts
+  const hasAnyConflict = Array.from(pendingByFile.keys()).some((i) =>
+    conflicts.has(pendingKey(row.key, i))
+  );
 
   const handlePaste = useCallback((e: { text: string }) => {
     inputRef.current?.insertText(e.text);
@@ -121,7 +126,17 @@ export function EnvRow({
                 </span>
               )}
               {hasAnyPending && !isEditingKey && (
-                <span fg={Colors.pendingChange}> ✎</span>
+                <span
+                  fg={
+                    hasAnyConflict && isSelectedRow
+                      ? Colors.primaryText
+                      : hasAnyConflict
+                        ? Colors.missing
+                        : Colors.pendingChange
+                  }
+                >
+                  {hasAnyConflict ? " ⚠" : " ✎"}
+                </span>
               )}
             </text>
           )}
@@ -133,6 +148,7 @@ export function EnvRow({
           const isEditingThisCell = isEditingValue && isSelectedCell;
           const pendingChange = pendingByFile.get(fileIndex);
           const hasPending = pendingChange !== undefined;
+          const hasConflict = conflicts.has(pendingKey(row.key, fileIndex));
           const width = colWidths[fileIndex + 1] ?? 20;
 
           const displayValue = value === null ? "—" : value === "" ? '""' : value;
@@ -176,11 +192,29 @@ export function EnvRow({
                 ) : (
                   <text>
                     {hasPending ? (
-                      <span
-                        fg={isSelectedCell ? Colors.selectedText : Colors.pendingChange}
-                      >
-                        {truncatedPending}
-                      </span>
+                      <>
+                        <span
+                          fg={
+                            isSelectedCell
+                              ? Colors.selectedText
+                              : hasConflict
+                                ? Colors.missing
+                                : Colors.pendingChange
+                          }
+                        >
+                          {truncatedPending}
+                        </span>
+                        {hasConflict && (
+                          <span
+                            fg={
+                              isSelectedCell ? Colors.selectedText : Colors.missing
+                            }
+                          >
+                            {" "}
+                            ⚠
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <span
                         fg={

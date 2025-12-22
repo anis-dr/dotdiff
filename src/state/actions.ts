@@ -55,14 +55,18 @@ export const upsertChange = (state: AppState, change: PendingChange): AppState =
   return { ...state, pending: newPending };
 };
 
-/** Remove a specific pending change */
+/** Remove a specific pending change (also clears its conflict) */
 export const removeChange = (state: AppState, varKey: string, fileIndex: number): AppState => {
   const key = pendingKey(varKey, fileIndex);
   if (!state.pending.has(key)) return state;
 
   const newPending = new Map(state.pending);
   newPending.delete(key);
-  return { ...state, pending: newPending };
+
+  const newConflicts = new Set(state.conflicts);
+  newConflicts.delete(key);
+
+  return { ...state, pending: newPending, conflicts: newConflicts };
 };
 
 /** Remove all pending changes for a key (all files) */
@@ -91,6 +95,7 @@ export const removeChangesForKey = (
 export const clearChanges = (state: AppState): AppState => ({
   ...state,
   pending: new Map(),
+  conflicts: new Set(),
 });
 
 /** Undo the last pending change (LIFO) */
@@ -350,4 +355,52 @@ export const getOriginalValue = (
   if (!file) return null;
   return file.variables.get(varKey) ?? null;
 };
+
+// =============================================================================
+// File Watcher Actions
+// =============================================================================
+
+/**
+ * Update a single file from disk and detect conflicts.
+ * Called when file watcher detects external change.
+ */
+export const updateFileFromDisk = (
+  state: AppState,
+  fileIndex: number,
+  newVariables: ReadonlyMap<string, string>
+): AppState => {
+  const file = state.files[fileIndex];
+  if (!file) return state;
+
+  // Detect conflicts: pending changes where oldValue no longer matches disk
+  const newConflicts = new Set(state.conflicts);
+
+  for (const [pKey, change] of state.pending) {
+    if (change.fileIndex !== fileIndex) continue;
+
+    const diskValue = newVariables.get(change.key) ?? null;
+    const wasConflict = state.conflicts.has(pKey);
+
+    // Conflict if disk value differs from what we recorded as oldValue
+    const isConflict = diskValue !== change.oldValue;
+
+    if (isConflict && !wasConflict) {
+      newConflicts.add(pKey);
+    } else if (!isConflict && wasConflict) {
+      newConflicts.delete(pKey);
+    }
+  }
+
+  // Update the file in state
+  const newFiles = state.files.map((f, i) =>
+    i === fileIndex ? { ...f, variables: newVariables } : f
+  );
+
+  return {
+    ...state,
+    files: newFiles,
+    conflicts: newConflicts,
+  };
+};
+
 

@@ -5,7 +5,6 @@ import { describe, expect, test } from "bun:test";
 import {
   parseEnvLines,
   buildAssignmentLine,
-  applyEnvChanges,
   patchEnvContent,
 } from "../src/services/envFormat.js";
 

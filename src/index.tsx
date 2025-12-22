@@ -7,7 +7,7 @@ import { FileSystem } from "@effect/platform";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
-import { Console, Effect, Layer } from "effect";
+import { Console, Effect, Layer, Stream, Fiber, Runtime } from "effect";
 import { App } from "./components/index.js";
 import {
   EnvDiffer,
@@ -16,7 +16,11 @@ import {
   EnvParserLive,
   EnvWriter,
   EnvWriterLive,
+  FileWatcher,
+  FileWatcherLive,
+  type FileChangeEvent,
 } from "./services/index.js";
+import { readFileFromDisk, findFileIndex } from "./state/fileSync.js";
 import type { EnvFile, PendingChange } from "./types.js";
 
 // CLI arguments: at least 2 .env file paths
@@ -36,6 +40,9 @@ const TERMINAL_RESTORE =
   "\x1b[?1049l" + // Exit alternate screen buffer
   "\x1b[0m"; // Reset all attributes
 
+/** Callback type for file change notifications */
+type FileChangeCallback = (fileIndex: number, newVars: ReadonlyMap<string, string>) => void;
+
 /**
  * Render the TUI application with proper cleanup handling
  */
@@ -43,11 +50,20 @@ const renderApp = (
   envFiles: ReadonlyArray<EnvFile>,
   saveEffect: (
     changes: ReadonlyArray<PendingChange>
-  ) => Promise<ReadonlyArray<EnvFile>>
+  ) => Promise<ReadonlyArray<EnvFile>>,
+  registerFileChangeCallback: (cb: FileChangeCallback) => void
 ) =>
   Effect.promise(async () => {
     const renderer = await createCliRenderer({ exitOnCtrlC: false });
     let isShuttingDown = false;
+    let onFileChange: FileChangeCallback | null = null;
+
+    // Register callback to receive file change events from the watcher
+    registerFileChangeCallback((fileIndex, newVars) => {
+      if (onFileChange) {
+        onFileChange(fileIndex, newVars);
+      }
+    });
 
     const restoreTerminal = () => {
       try {
@@ -103,11 +119,17 @@ const renderApp = (
         return envFiles;
       });
 
+    // The App will register its callback via onRegisterFileChange
+    const handleRegisterFileChange = (cb: FileChangeCallback) => {
+      onFileChange = cb;
+    };
+
     createRoot(renderer).render(
       <App
         initialFiles={envFiles}
         onSave={handleSave}
         onQuit={() => shutdown(0)}
+        onRegisterFileChange={handleRegisterFileChange}
       />
     );
   });
@@ -118,7 +140,9 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
     const parser = yield* EnvParser;
     const differ = yield* EnvDiffer;
     const writer = yield* EnvWriter;
+    const watcher = yield* FileWatcher;
     const fs = yield* FileSystem.FileSystem;
+    const runtime = yield* Effect.runtime<FileSystem.FileSystem>();
 
     // Parse all env files
     yield* Console.log(`Loading ${files.length} env files...`);
@@ -140,8 +164,44 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
       return updated;
     };
 
+    // Callback that will be set by the App component
+    let fileChangeCallback: FileChangeCallback | null = null;
+
+    const registerFileChangeCallback = (cb: FileChangeCallback) => {
+      fileChangeCallback = cb;
+    };
+
     // Render the TUI (diff rows are now computed from files in the App)
-    yield* renderApp(envFiles, saveEffect);
+    yield* renderApp(envFiles, saveEffect, registerFileChangeCallback);
+
+    // Start file watcher in background
+    const filePaths = envFiles.map((f) => f.path);
+    const watchStream = watcher.watchFiles(filePaths);
+
+    // Fork the watcher to run in background
+    yield* Stream.runForEach(watchStream, (event) =>
+      Effect.gen(function* () {
+        // Find which file changed
+        const fileIndex = findFileIndex(envFiles, event.path);
+        if (fileIndex === -1) return;
+
+        // Re-read the file from disk
+        const file = envFiles[fileIndex];
+        if (!file) return;
+
+        const newVars = yield* readFileFromDisk(file.path).pipe(
+          Effect.catchAll(() => Effect.succeed(null))
+        );
+
+        if (newVars && fileChangeCallback) {
+          // Notify the App component
+          fileChangeCallback(fileIndex, newVars);
+        }
+      })
+    ).pipe(
+      Effect.catchAll(() => Effect.void),
+      Effect.fork
+    );
 
     // Keep the process alive
     return yield* Effect.never;
@@ -170,7 +230,8 @@ const cli = Command.run(envy, {
 const ServicesLive = Layer.mergeAll(
   EnvParserLive,
   EnvDifferLive,
-  EnvWriterLive
+  EnvWriterLive,
+  FileWatcherLive
 );
 
 const MainLive = ServicesLive.pipe(Layer.provideMerge(BunContext.layer));
