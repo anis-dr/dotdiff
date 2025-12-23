@@ -5,8 +5,8 @@
  * Derived atoms compute values from the base atoms.
  */
 import { Atom } from "@effect-atom/atom-react";
-import type { Clipboard, DiffRow, EditMode, EnvFile, ModalState, PendingChange, SearchState } from "../types.js";
-import { getVariableStatus } from "../types.js";
+import type { Clipboard, DiffRow, EnvFile, ModalType, PendingChange } from "../types.js";
+import { AppMode, getVariableStatus } from "../types.js";
 
 // =============================================================================
 // Pending Change Key Helpers
@@ -34,17 +34,28 @@ export const selectionAtom = Atom.make<{ readonly row: number; readonly col: num
   col: 0,
 }).pipe(Atom.keepAlive);
 
-/** Edit mode state */
-export const editModeAtom = Atom.make<EditMode | null>(null).pipe(Atom.keepAlive);
-
 /** Clipboard state */
 export const clipboardAtom = Atom.make<Clipboard | null>(null).pipe(Atom.keepAlive);
 
-/** Search state */
-export const searchAtom = Atom.make<SearchState>({ active: false, query: "" }).pipe(Atom.keepAlive);
+// =============================================================================
+// Application Mode - State Machine
+// =============================================================================
 
-/** Modal state */
-export const modalAtom = Atom.make<ModalState | null>(null).pipe(Atom.keepAlive);
+/** Application mode atom - single source of truth for keyboard state machine */
+export const appModeAtom = Atom.make<AppMode>(AppMode.Normal()).pipe(Atom.keepAlive);
+
+// Derived atoms for backward compatibility and convenience
+/** Whether search mode is active */
+export const isSearchActiveAtom = Atom.map(appModeAtom, (m) => m._tag === "Search");
+
+/** Current search query (empty string if not in search mode) */
+export const searchQueryAtom = Atom.map(appModeAtom, (m) => m._tag === "Search" ? m.query : "");
+
+/** Edit state if in edit mode, null otherwise */
+export const editModeAtom = Atom.map(appModeAtom, (m) => m._tag === "Edit" ? m : null);
+
+/** Modal type if in modal mode, null otherwise */
+export const modalTypeAtom = Atom.map(appModeAtom, (m): ModalType | null => m._tag === "Modal" ? m.modalType : null);
 
 /** Message state */
 export const messageAtom = Atom.make<string | null>(null).pipe(Atom.keepAlive);
@@ -71,10 +82,8 @@ export interface AppState {
     readonly row: number;
     readonly col: number;
   };
-  readonly editMode: EditMode | null;
+  readonly mode: AppMode;
   readonly clipboard: Clipboard | null;
-  readonly search: SearchState;
-  readonly modal: ModalState | null;
   readonly message: string | null;
 
   // Layout (computed from terminal width, stored for components)
@@ -90,10 +99,8 @@ export const initialAppState: AppState = {
   pending: new Map(),
   conflicts: new Set(),
   selection: { row: 0, col: 0 },
-  editMode: null,
+  mode: AppMode.Normal(),
   clipboard: null,
-  search: { active: false, query: "" },
-  modal: null,
   message: null,
   colWidths: [],
 };
@@ -112,10 +119,8 @@ export const appStateAtom = Atom.make((get): AppState => ({
   pending: get(pendingAtom),
   conflicts: get(conflictsAtom),
   selection: get(selectionAtom),
-  editMode: get(editModeAtom),
+  mode: get(appModeAtom),
   clipboard: get(clipboardAtom),
-  search: get(searchAtom),
-  modal: get(modalAtom),
   message: get(messageAtom),
   colWidths: get(colWidthsAtom),
 }));
@@ -214,14 +219,15 @@ export const pendingListAtom = Atom.map(
  * Filtered row indices based on search query
  */
 export const filteredRowIndicesAtom = Atom.make((get): ReadonlyArray<number> => {
-  const search = get(searchAtom);
+  const isSearchActive = get(isSearchActiveAtom);
+  const query = get(searchQueryAtom);
   const rows = get(effectiveDiffRowsAtom);
 
-  if (!search.active || search.query === "") {
+  if (!isSearchActive || query === "") {
     return rows.map((_, i) => i);
   }
 
-  const lowerQuery = search.query.toLowerCase();
+  const lowerQuery = query.toLowerCase();
   return rows
     .map((row, i) => ({ row, i }))
     .filter(({ row }) => row.key.toLowerCase().includes(lowerQuery))

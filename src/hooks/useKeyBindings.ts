@@ -1,163 +1,242 @@
 /**
- * Hook for keyboard bindings
+ * Hook for keyboard bindings using AppMode state machine
+ *
+ * Uses AppMode.$match for clean mode-based dispatch.
+ * Actions are still passed as callbacks to allow async operations (save, quit).
  */
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useKeyboard } from "@opentui/react";
-import type { EditMode, ModalState } from "../types.js";
+import { appModeAtom, pendingListAtom } from "../state/appState.js";
+import {
+  copyActionOp,
+  cycleColumnOp,
+  deleteAllActionOp,
+  deleteVariableActionOp,
+  moveDownOp,
+  moveLeftOp,
+  moveRightOp,
+  moveUpOp,
+  nextDiffOp,
+  nextMatchOp,
+  pasteActionOp,
+  pasteAllActionOp,
+  prevDiffOp,
+  prevMatchOp,
+  revertActionOp,
+  setMessageOp,
+  syncToLeftActionOp,
+  syncToRightActionOp,
+  undoActionOp,
+  undoAllActionOp,
+} from "../state/atomicOps.js";
+import {
+  cancelEditOp,
+  closeModalOp,
+  closeSearchOp,
+  enterAddModeOp,
+  enterEditModeActionOp,
+  enterSearchModeOp,
+  openModalOp,
+} from "../state/keyboardDispatch.js";
+import { AppMode } from "../types.js";
 
-export interface KeyBindingActions {
-  readonly moveUp: () => void;
-  readonly moveDown: () => void;
-  readonly moveLeft: () => void;
-  readonly moveRight: () => void;
-  readonly cycleColumn: () => void;
-  readonly copy: () => void;
-  readonly paste: () => void;
-  readonly pasteAll: () => void;
-  readonly revert: () => void;
-  readonly undo: () => void;
-  readonly undoAll: () => void;
-  readonly save: () => void;
-  readonly enterEditMode: () => void;
-  readonly enterAddMode: () => void;
-  readonly deleteVariable: () => void;
-  readonly deleteAll: () => void;
-  readonly quit: () => void;
-  readonly cancelEdit: () => void;
-  readonly openSearch: () => void;
-  readonly closeSearch: () => void;
-  readonly nextMatch: () => void;
-  readonly prevMatch: () => void;
-  readonly nextDiff: () => void;
-  readonly prevDiff: () => void;
-  readonly openHelp: () => void;
-  readonly closeModal: () => void;
-  readonly confirmModal: () => void;
-  readonly syncToLeft: () => void;
-  readonly syncToRight: () => void;
+export interface KeyBindingCallbacks {
+  /** Called when quit is confirmed (no pending changes or after modal confirm) */
+  readonly onQuit: () => void;
+  /** Called when save modal is confirmed */
+  readonly onConfirmSave: () => void;
 }
 
-export function useKeyBindings(
-  editMode: EditMode | null,
-  isSearchActive: boolean,
-  modalState: ModalState | null,
-  actions: KeyBindingActions,
-): void {
+export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
+  const { onConfirmSave, onQuit } = callbacks;
+  const mode = useAtomValue(appModeAtom);
+  const pendingList = useAtomValue(pendingListAtom);
+
+  // Mode transitions
+  const cancelEdit = useAtomSet(cancelEditOp);
+  const closeModal = useAtomSet(closeModalOp);
+  const closeSearch = useAtomSet(closeSearchOp);
+  const enterAddMode = useAtomSet(enterAddModeOp);
+  const enterEditMode = useAtomSet(enterEditModeActionOp);
+  const openSearch = useAtomSet(enterSearchModeOp);
+  const openModal = useAtomSet(openModalOp);
+  const showMessage = useAtomSet(setMessageOp);
+
+  // Navigation
+  const moveUp = useAtomSet(moveUpOp);
+  const moveDown = useAtomSet(moveDownOp);
+  const moveLeft = useAtomSet(moveLeftOp);
+  const moveRight = useAtomSet(moveRightOp);
+  const cycleColumn = useAtomSet(cycleColumnOp);
+  const nextMatch = useAtomSet(nextMatchOp);
+  const prevMatch = useAtomSet(prevMatchOp);
+  const nextDiff = useAtomSet(nextDiffOp);
+  const prevDiff = useAtomSet(prevDiffOp);
+
+  // Actions
+  const copy = useAtomSet(copyActionOp);
+  const paste = useAtomSet(pasteActionOp);
+  const pasteAll = useAtomSet(pasteAllActionOp);
+  const revert = useAtomSet(revertActionOp);
+  const undo = useAtomSet(undoActionOp);
+  const undoAll = useAtomSet(undoAllActionOp);
+  const deleteVariable = useAtomSet(deleteVariableActionOp);
+  const deleteAll = useAtomSet(deleteAllActionOp);
+  const syncToLeft = useAtomSet(syncToLeftActionOp);
+  const syncToRight = useAtomSet(syncToRightActionOp);
+
   useKeyboard((key) => {
-    // Modal mode: handle y/n/escape
-    if (modalState) {
-      if (key.name === "escape" || key.name === "n") {
-        actions.closeModal();
-      } else if (key.name === "y") {
-        actions.confirmModal();
-      } else if (key.name === "?" && modalState.type === "help") {
-        actions.closeModal();
-      }
-      return;
-    }
+    AppMode.$match(mode, {
+      Modal: (m) => {
+        // Modal mode: y/n/escape
+        if (key.name === "escape" || key.name === "n") {
+          closeModal();
+        } else if (key.name === "y") {
+          if (m.modalType === "quit") {
+            closeModal();
+            onQuit();
+          } else if (m.modalType === "save") {
+            onConfirmSave();
+          } else {
+            closeModal();
+          }
+        } else if (key.name === "?" && m.modalType === "help") {
+          closeModal();
+        }
+      },
 
-    // Search mode: escape closes, n/N navigates
-    if (isSearchActive) {
-      if (key.name === "escape") {
-        actions.closeSearch();
-      }
-      // Note: n/N for next/prev match handled when search is closed but query active
-      return;
-    }
+      Search: () => {
+        // Search mode: escape closes (text input handled by overlay)
+        if (key.name === "escape") {
+          closeSearch();
+        }
+      },
 
-    // Edit mode: only escape works
-    if (editMode) {
-      if (key.name === "escape") {
-        actions.cancelEdit();
-      }
-      return;
-    }
+      Edit: () => {
+        // Edit mode: escape cancels (text input handled by input component)
+        if (key.name === "escape") {
+          cancelEdit();
+        }
+      },
 
-    // Normal mode
-    switch (key.name) {
-      case "up":
-      case "k":
-        actions.moveUp();
-        break;
-      case "down":
-      case "j":
-        actions.moveDown();
-        break;
-      case "left":
-      case "h":
-        actions.moveLeft();
-        break;
-      case "right":
-      case "l":
-        actions.moveRight();
-        break;
-      case "tab":
-        actions.cycleColumn();
-        break;
-      case "c":
-        actions.copy();
-        break;
-      case "v":
-        if (key.shift) {
-          actions.pasteAll();
-        } else {
-          actions.paste();
+      Normal: () => {
+        // Normal mode: full keyboard navigation and actions
+        switch (key.name) {
+          // Navigation
+          case "up":
+          case "k":
+            moveUp();
+            break;
+          case "down":
+          case "j":
+            moveDown();
+            break;
+          case "left":
+          case "h":
+            moveLeft();
+            break;
+          case "right":
+          case "l":
+            moveRight();
+            break;
+          case "tab":
+            cycleColumn();
+            break;
+
+          // Clipboard
+          case "c":
+            copy();
+            break;
+          case "v":
+            if (key.shift) {
+              pasteAll();
+            } else {
+              paste();
+            }
+            break;
+
+          // Undo/Revert
+          case "r":
+            revert();
+            break;
+          case "u":
+            if (key.shift) {
+              undoAll();
+            } else {
+              undo();
+            }
+            break;
+
+          // Save
+          case "s":
+            if (pendingList.length === 0) {
+              showMessage("⚠ No changes to save");
+            } else {
+              openModal("save");
+            }
+            break;
+
+          // Edit mode
+          case "e":
+          case "return":
+            enterEditMode();
+            break;
+          case "a":
+            enterAddMode();
+            break;
+
+          // Delete
+          case "d":
+            if (key.shift) {
+              deleteAll();
+            } else {
+              deleteVariable();
+            }
+            break;
+
+          // Quit
+          case "q":
+            if (pendingList.length > 0) {
+              openModal("quit");
+            } else {
+              onQuit();
+            }
+            break;
+
+          // Search
+          case "/":
+            openSearch();
+            break;
+          case "n":
+            if (key.shift) {
+              prevMatch();
+            } else {
+              nextMatch();
+            }
+            break;
+
+          // Diff navigation
+          case "]":
+            nextDiff();
+            break;
+          case "[":
+            prevDiff();
+            break;
+
+          // Help
+          case "?":
+            openModal("help");
+            break;
+
+          // Sync (2-file mode)
+          case "<":
+            syncToLeft();
+            break;
+          case ">":
+            syncToRight();
+            break;
         }
-        break;
-      case "r":
-        actions.revert();
-        break;
-      case "u":
-        if (key.shift) {
-          actions.undoAll();
-        } else {
-          actions.undo();
-        }
-        break;
-      case "s":
-        actions.save();
-        break;
-      case "e":
-      case "return":
-        actions.enterEditMode();
-        break;
-      case "a":
-        actions.enterAddMode();
-        break;
-      case "d":
-        if (key.shift) {
-          actions.deleteAll();
-        } else {
-          actions.deleteVariable();
-        }
-        break;
-      case "q":
-        actions.quit();
-        break;
-      case "/":
-        actions.openSearch();
-        break;
-      case "n":
-        if (key.shift) {
-          actions.prevMatch();
-        } else {
-          actions.nextMatch();
-        }
-        break;
-      case "]":
-        actions.nextDiff();
-        break;
-      case "[":
-        actions.prevDiff();
-        break;
-      case "?":
-        actions.openHelp();
-        break;
-      case "<":
-        actions.syncToLeft();
-        break;
-      case ">":
-        actions.syncToRight();
-        break;
-    }
+      },
+    });
   });
 }

@@ -5,49 +5,50 @@
  * Operations are triggered via registry.set(op, args) and results verified
  * by reading the affected atoms with registry.get(atom).
  */
-import { describe, expect, test } from "bun:test";
 import { Registry } from "@effect-atom/atom-react";
+import { describe, expect, test } from "bun:test";
 import {
-  pendingAtom,
-  conflictsAtom,
-  selectionAtom,
-  filesAtom,
-  editModeAtom,
+  appModeAtom,
   clipboardAtom,
-  searchAtom,
-  modalAtom,
-  messageAtom,
   colWidthsAtom,
+  conflictsAtom,
+  editModeAtom,
+  filesAtom,
+  messageAtom,
+  pendingAtom,
   pendingKey,
+  selectionAtom,
 } from "../../src/state/appState.js";
 import {
-  upsertChangeOp,
-  removeChangeOp,
-  removeChangesForKeyOp,
-  clearChangesOp,
-  undoLastOp,
   addChangesOp,
-  setSelectionOp,
-  moveUpOp,
+  clearChangesOp,
+  cycleColumnOp,
   moveDownOp,
   moveLeftOp,
   moveRightOp,
-  cycleColumnOp,
-  setFilesOp,
-  updateFileFromDiskOp,
-  enterEditModeOp,
-  enterAddModeOp,
-  updateEditInputOp,
-  exitEditModeOp,
+  moveUpOp,
+  removeChangeOp,
+  removeChangesForKeyOp,
   setClipboardOp,
-  openSearchOp,
-  closeSearchOp,
-  setSearchQueryOp,
-  openModalOp,
-  closeModalOp,
-  setMessageOp,
   setColWidthsOp,
+  setFilesOp,
+  setMessageOp,
+  setSelectionOp,
+  undoLastOp,
+  updateFileFromDiskOp,
+  upsertChangeOp,
 } from "../../src/state/atomicOps.js";
+import {
+  closeModalOp,
+  closeSearchOp,
+  enterAddModeOp,
+  enterEditModeOp,
+  enterSearchModeOp,
+  exitEditModeOp,
+  openModalOp,
+  setSearchQueryOp,
+  updateEditInputOp,
+} from "../../src/state/keyboardDispatch.js";
 import type { EnvFile, PendingChange } from "../../src/types.js";
 import { FilePath } from "../../src/types.js";
 
@@ -219,7 +220,7 @@ describe("undoLastOp", () => {
 describe("addChangesOp", () => {
   test("adds multiple changes at once", () => {
     const registry = Registry.make();
-    const changes: PendingChange[] = [
+    const changes: Array<PendingChange> = [
       { key: "A", fileIndex: 0, oldValue: "a", newValue: "b" },
       { key: "B", fileIndex: 1, oldValue: "c", newValue: "d" },
     ];
@@ -267,7 +268,9 @@ describe("moveDownOp", () => {
   test("increments row", () => {
     const registry = Registry.make();
     // Need files to have rows for rowCount
-    const files = [createFile(".env", { A: "1", B: "2", C: "3", D: "4", E: "5", F: "6", G: "7", H: "8", I: "9", J: "10" })];
+    const files = [
+      createFile(".env", { A: "1", B: "2", C: "3", D: "4", E: "5", F: "6", G: "7", H: "8", I: "9", J: "10" }),
+    ];
     registry.set(filesAtom, files);
     registry.set(selectionAtom, { row: 0, col: 0 });
 
@@ -356,11 +359,13 @@ describe("enterEditModeOp", () => {
 
     registry.set(enterEditModeOp, "current value");
 
-    expect(registry.get(editModeAtom)).toEqual({
-      phase: "editValue",
-      inputValue: "current value",
-      dirty: false,
-    });
+    const mode = registry.get(appModeAtom);
+    expect(mode._tag).toBe("Edit");
+    if (mode._tag === "Edit") {
+      expect(mode.phase).toBe("editValue");
+      expect(mode.value).toBe("current value");
+      expect(mode.dirty).toBe(false);
+    }
   });
 });
 
@@ -370,12 +375,14 @@ describe("enterAddModeOp", () => {
 
     registry.set(enterAddModeOp, undefined);
 
-    expect(registry.get(editModeAtom)).toEqual({
-      phase: "addKey",
-      inputValue: "",
-      isNewRow: true,
-      dirty: false,
-    });
+    const mode = registry.get(appModeAtom);
+    expect(mode._tag).toBe("Edit");
+    if (mode._tag === "Edit") {
+      expect(mode.phase).toBe("addKey");
+      expect(mode.value).toBe("");
+      expect(mode.dirty).toBe(false);
+      expect(mode.isNewRow).toBe(true);
+    }
   });
 });
 
@@ -387,7 +394,7 @@ describe("updateEditInputOp", () => {
     registry.set(updateEditInputOp, "modified");
 
     const editMode = registry.get(editModeAtom);
-    expect(editMode?.inputValue).toBe("modified");
+    expect(editMode?.value).toBe("modified");
     expect(editMode?.dirty).toBe(true);
   });
 
@@ -408,6 +415,7 @@ describe("exitEditModeOp", () => {
     registry.set(exitEditModeOp, undefined);
 
     expect(registry.get(editModeAtom)).toBeNull();
+    expect(registry.get(appModeAtom)._tag).toBe("Normal");
   });
 });
 
@@ -421,26 +429,34 @@ describe("setClipboardOp", () => {
   });
 });
 
-describe("openSearchOp / closeSearchOp", () => {
+describe("enterSearchModeOp / closeSearchOp", () => {
   test("toggles search state", () => {
     const registry = Registry.make();
 
-    registry.set(openSearchOp, undefined);
-    expect(registry.get(searchAtom)).toEqual({ active: true, query: "" });
+    registry.set(enterSearchModeOp, undefined);
+    expect(registry.get(appModeAtom)._tag).toBe("Search");
+    const searchMode = registry.get(appModeAtom);
+    if (searchMode._tag === "Search") {
+      expect(searchMode.query).toBe("");
+    }
 
     registry.set(closeSearchOp, undefined);
-    expect(registry.get(searchAtom)).toEqual({ active: false, query: "" });
+    expect(registry.get(appModeAtom)._tag).toBe("Normal");
   });
 });
 
 describe("setSearchQueryOp", () => {
   test("updates query", () => {
     const registry = Registry.make();
-    registry.set(openSearchOp, undefined);
+    registry.set(enterSearchModeOp, undefined);
 
     registry.set(setSearchQueryOp, "search term");
 
-    expect(registry.get(searchAtom).query).toBe("search term");
+    const mode = registry.get(appModeAtom);
+    expect(mode._tag).toBe("Search");
+    if (mode._tag === "Search") {
+      expect(mode.query).toBe("search term");
+    }
   });
 });
 
@@ -448,19 +464,15 @@ describe("openModalOp / closeModalOp", () => {
   test("modal state management", () => {
     const registry = Registry.make();
 
-    registry.set(openModalOp, { type: "quit" });
-    expect(registry.get(modalAtom)).toEqual({ type: "quit" });
+    registry.set(openModalOp, "quit");
+    const mode = registry.get(appModeAtom);
+    expect(mode._tag).toBe("Modal");
+    if (mode._tag === "Modal") {
+      expect(mode.modalType).toBe("quit");
+    }
 
     registry.set(closeModalOp, undefined);
-    expect(registry.get(modalAtom)).toBeNull();
-  });
-
-  test("modal with data", () => {
-    const registry = Registry.make();
-
-    registry.set(openModalOp, { type: "save", data: { changes: 5 } });
-
-    expect(registry.get(modalAtom)).toEqual({ type: "save", data: { changes: 5 } });
+    expect(registry.get(appModeAtom)._tag).toBe("Normal");
   });
 });
 
@@ -550,4 +562,3 @@ describe("updateFileFromDiskOp", () => {
     expect(registry.get(filesAtom)).toEqual([]);
   });
 });
-

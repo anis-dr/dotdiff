@@ -1,15 +1,24 @@
 /**
  * Hook for edit mode state management
  *
- * Uses atomic operations from atomicOps.ts for clean state updates.
+ * Uses atomic operations from keyboardDispatch.ts for mode transitions.
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { editModeAtom } from "../state/appState.js";
-import { enterAddModeOp, enterEditModeOp, exitEditModeOp, updateEditInputOp } from "../state/atomicOps.js";
-import type { EditMode } from "../types.js";
+import {
+  cancelEditOp,
+  enterAddModeOp,
+  enterEditModeOp,
+  exitEditModeOp,
+  updateEditInputOp,
+} from "../state/keyboardDispatch.js";
+import type { AppMode } from "../types.js";
+
+/** Edit mode state (null if not in edit mode) */
+export type EditModeState = Extract<AppMode, { readonly _tag: "Edit" }> | null;
 
 export interface UseEditMode {
-  editMode: EditMode | null;
+  editMode: EditModeState;
   enterEditMode: (currentValue: string) => void;
   enterAddMode: () => void;
   updateEditInput: (value: string) => void;
@@ -17,10 +26,10 @@ export interface UseEditMode {
 }
 
 export function useEditMode(): UseEditMode {
-  // Read state
+  // Read state (derived atom returns Edit mode or null)
   const editMode = useAtomValue(editModeAtom);
 
-  // Atomic operations
+  // Mode transition operations
   const enterEditMode = useAtomSet(enterEditModeOp);
   const enterAddMode = useAtomSet(enterAddModeOp);
   const updateEditInput = useAtomSet(updateEditInputOp);
@@ -32,5 +41,20 @@ export function useEditMode(): UseEditMode {
     enterAddMode,
     updateEditInput,
     exitEditMode,
+  };
+}
+
+/** Hook that also provides cancel with message */
+export function useEditActions() {
+  const { editMode, enterEditMode, enterAddMode, updateEditInput, exitEditMode } = useEditMode();
+  const cancelEdit = useAtomSet(cancelEditOp);
+
+  return {
+    cancelEdit,
+    editMode,
+    enterAddMode,
+    enterEditMode,
+    exitEditMode,
+    updateEditInput,
   };
 }

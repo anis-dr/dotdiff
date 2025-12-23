@@ -1,6 +1,6 @@
 // Keyboard bindings
 export { useKeyBindings } from "./useKeyBindings.js";
-export type { KeyBindingActions } from "./useKeyBindings.js";
+export type { KeyBindingCallbacks } from "./useKeyBindings.js";
 
 // Focused hooks for granular subscriptions
 export { useSelection } from "./useSelection.js";
@@ -12,7 +12,7 @@ export type { UsePendingChanges } from "./usePendingChanges.js";
 export { useSearch } from "./useSearch.js";
 export type { UseSearch } from "./useSearch.js";
 
-export { useModal } from "./useModal.js";
+export { useModal, useAppMode } from "./useModal.js";
 export type { UseModal } from "./useModal.js";
 
 export { useEditMode } from "./useEditMode.js";

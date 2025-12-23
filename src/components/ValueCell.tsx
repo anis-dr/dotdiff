@@ -4,7 +4,7 @@
  */
 import type { InputRenderable } from "@opentui/core";
 import type { RefObject } from "react";
-import type { EditMode } from "../types.js";
+import type { AppMode } from "../types.js";
 import { Colors } from "../types.js";
 import { formatDisplayValue, truncate } from "../utils/index.js";
 
@@ -17,7 +17,7 @@ interface ValueCellProps {
   readonly hasPending: boolean;
   readonly hasConflict: boolean;
   readonly pendingValue: string | null | undefined;
-  readonly editMode: EditMode | null;
+  readonly editMode: Extract<AppMode, { readonly _tag: "Edit"; }> | null;
   readonly inputRef: RefObject<InputRenderable | null>;
   readonly onEditInput: (value: string) => void;
   readonly onEditSubmit: (value?: string) => void;
@@ -67,7 +67,7 @@ export function ValueCell({
             <input
               ref={inputRef}
               focused
-              value={editMode.inputValue}
+              value={editMode.value}
               onInput={onEditInput}
               onSubmit={onEditSubmit}
               onPaste={onPaste}

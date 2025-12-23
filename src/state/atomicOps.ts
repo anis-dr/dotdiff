@@ -9,8 +9,10 @@
  *   upsertChange({ key: "FOO", fileIndex: 0, oldValue: "bar", newValue: "baz" })
  */
 import { Atom } from "@effect-atom/atom-react";
-import type { Clipboard, EditMode, EnvFile, ModalState, PendingChange } from "../types.js";
+import type { Clipboard, EnvFile, PendingChange } from "../types.js";
+import { AppMode } from "../types.js";
 import {
+  appModeAtom,
   clipboardAtom,
   colWidthsAtom,
   conflictsAtom,
@@ -21,12 +23,10 @@ import {
   filesAtom,
   filteredRowIndicesAtom,
   messageAtom,
-  modalAtom,
   pendingAtom,
   pendingKey,
   pendingListAtom,
   rowCountAtom,
-  searchAtom,
   selectionAtom,
 } from "./appState.js";
 
@@ -328,56 +328,6 @@ export const updateFileFromDiskOp = Atom.fnSync(
 );
 
 // =============================================================================
-// Edit Mode Operations
-// =============================================================================
-
-/**
- * Enter edit mode for a value
- */
-export const enterEditModeOp = Atom.fnSync((currentValue: string, get) => {
-  const editMode: EditMode = {
-    phase: "editValue",
-    inputValue: currentValue,
-    dirty: false,
-  };
-  get.set(editModeAtom, editMode);
-});
-
-/**
- * Enter add mode (new variable)
- */
-export const enterAddModeOp = Atom.fnSync((_: void, get) => {
-  const editMode: EditMode = {
-    phase: "addKey",
-    inputValue: "",
-    isNewRow: true,
-    dirty: false,
-  };
-  get.set(editModeAtom, editMode);
-});
-
-/**
- * Update edit input value
- */
-export const updateEditInputOp = Atom.fnSync((value: string, get) => {
-  const editMode = get(editModeAtom);
-  if (!editMode) return;
-
-  get.set(editModeAtom, {
-    ...editMode,
-    inputValue: value,
-    dirty: true,
-  });
-});
-
-/**
- * Exit edit mode
- */
-export const exitEditModeOp = Atom.fnSync((_: void, get) => {
-  get.set(editModeAtom, null);
-});
-
-// =============================================================================
 // Clipboard Operations
 // =============================================================================
 
@@ -386,50 +336,6 @@ export const exitEditModeOp = Atom.fnSync((_: void, get) => {
  */
 export const setClipboardOp = Atom.fnSync((clipboard: Clipboard, get) => {
   get.set(clipboardAtom, clipboard);
-});
-
-// =============================================================================
-// Search Operations
-// =============================================================================
-
-/**
- * Open search
- */
-export const openSearchOp = Atom.fnSync((_: void, get) => {
-  get.set(searchAtom, { active: true, query: "" });
-});
-
-/**
- * Close search
- */
-export const closeSearchOp = Atom.fnSync((_: void, get) => {
-  get.set(searchAtom, { active: false, query: "" });
-});
-
-/**
- * Update search query
- */
-export const setSearchQueryOp = Atom.fnSync((query: string, get) => {
-  const search = get(searchAtom);
-  get.set(searchAtom, { ...search, query });
-});
-
-// =============================================================================
-// Modal Operations
-// =============================================================================
-
-/**
- * Open a modal
- */
-export const openModalOp = Atom.fnSync((modal: ModalState, get) => {
-  get.set(modalAtom, modal);
-});
-
-/**
- * Close modal
- */
-export const closeModalOp = Atom.fnSync((_: void, get) => {
-  get.set(modalAtom, null);
 });
 
 // =============================================================================
@@ -480,34 +386,20 @@ const getOriginalValue = (
 // -----------------------------------------------------------------------------
 
 /**
- * Enter edit mode for the current cell
- */
-export const enterEditModeActionOp = Atom.fnSync((_: void, get) => {
-  const currentRow = get(currentRowAtom);
-  const selection = get(selectionAtom);
-  if (!currentRow) return;
-
-  const value = currentRow.values[selection.col];
-  const editMode: EditMode = {
-    phase: "editValue",
-    inputValue: value ?? "",
-    dirty: false,
-  };
-  get.set(editModeAtom, editMode);
-});
-
-/**
- * Update edit input value (delegates to existing updateEditInputOp logic)
+ * Update edit input value
  */
 export const editInputActionOp = Atom.fnSync((value: string, get) => {
   const editMode = get(editModeAtom);
   if (!editMode) return;
 
-  get.set(editModeAtom, {
-    ...editMode,
-    inputValue: value,
-    dirty: true,
-  });
+  get.set(
+    appModeAtom,
+    AppMode.Edit({
+      ...editMode,
+      value,
+      dirty: true,
+    }),
+  );
 });
 
 /**
@@ -521,15 +413,15 @@ export const saveEditActionOp = Atom.fnSync(
     const files = get(filesAtom);
 
     if (!currentRow || !editMode) {
-      get.set(editModeAtom, null);
+      get.set(appModeAtom, AppMode.Normal());
       return;
     }
 
-    const inputValue = args.submittedValue ?? editMode.inputValue;
+    const inputValue = args.submittedValue ?? editMode.value;
 
     // If user didn't type anything, just cancel
     if (!editMode.dirty) {
-      get.set(editModeAtom, null);
+      get.set(appModeAtom, AppMode.Normal());
       get.set(messageAtom, "⊘ Edit cancelled");
       return;
     }
@@ -554,7 +446,7 @@ export const saveEditActionOp = Atom.fnSync(
       const newPending = new Map(pending);
       newPending.delete(key);
       get.set(pendingAtom, newPending);
-      get.set(editModeAtom, null);
+      get.set(appModeAtom, AppMode.Normal());
       get.set(messageAtom, "⊘ No change");
       return;
     }
@@ -570,7 +462,7 @@ export const saveEditActionOp = Atom.fnSync(
       newValue,
     });
     get.set(pendingAtom, newPending);
-    get.set(editModeAtom, null);
+    get.set(appModeAtom, AppMode.Normal());
     get.set(messageAtom, "✓ Value updated");
   },
 );
@@ -579,7 +471,7 @@ export const saveEditActionOp = Atom.fnSync(
  * Cancel edit - exits edit mode and shows message
  */
 export const cancelEditActionOp = Atom.fnSync((_: void, get) => {
-  get.set(editModeAtom, null);
+  get.set(appModeAtom, AppMode.Normal());
   get.set(messageAtom, "⊘ Edit cancelled");
 });
 

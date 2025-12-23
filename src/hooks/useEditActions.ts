@@ -1,11 +1,12 @@
 /**
  * Hook for edit-related actions (edit, save edit, cancel edit)
  *
- * Thin wrapper around atomic operations in atomicOps.ts
+ * Thin wrapper around atomic operations
  */
 import { useAtomSet } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import { cancelEditActionOp, editInputActionOp, enterEditModeActionOp, saveEditActionOp } from "../state/atomicOps.js";
+import { cancelEditActionOp, editInputActionOp, saveEditActionOp } from "../state/atomicOps.js";
+import { enterEditModeActionOp } from "../state/keyboardDispatch.js";
 
 export interface UseEditActions {
   handleEnterEditMode: () => void;
@@ -32,9 +33,9 @@ export function useEditActions(): UseEditActions {
   );
 
   return {
-    handleEnterEditMode: enterEditMode,
-    handleEditInput: editInput,
-    handleSaveEdit,
     handleCancelEdit: cancelEdit,
+    handleEditInput: editInput,
+    handleEnterEditMode: enterEditMode,
+    handleSaveEdit,
   };
 }

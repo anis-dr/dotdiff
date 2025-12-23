@@ -116,7 +116,7 @@ export function EnvRow({
                 <input
                   ref={inputRef}
                   focused
-                  value={editMode.inputValue}
+                  value={editMode.value}
                   onInput={onEditInput}
                   onSubmit={onEditSubmit}
                   onPaste={handlePaste}

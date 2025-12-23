@@ -1,12 +1,16 @@
 /**
  * Hook for search state management
  *
- * Uses atomic operations from atomicOps.ts for clean state updates.
+ * Uses atomic operations from keyboardDispatch.ts for mode transitions.
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
-import { searchAtom } from "../state/appState.js";
-import { closeSearchOp, openSearchOp, setSearchQueryOp } from "../state/atomicOps.js";
-import type { SearchState } from "../types.js";
+import { isSearchActiveAtom, searchQueryAtom } from "../state/appState.js";
+import { closeSearchOp, enterSearchModeOp, setSearchQueryOp } from "../state/keyboardDispatch.js";
+
+export interface SearchState {
+  readonly active: boolean;
+  readonly query: string;
+}
 
 export interface UseSearch {
   search: SearchState;
@@ -16,16 +20,17 @@ export interface UseSearch {
 }
 
 export function useSearch(): UseSearch {
-  // Read state
-  const search = useAtomValue(searchAtom);
+  // Read state from derived atoms
+  const active = useAtomValue(isSearchActiveAtom);
+  const query = useAtomValue(searchQueryAtom);
 
-  // Atomic operations
-  const openSearch = useAtomSet(openSearchOp);
+  // Mode transition operations
+  const openSearch = useAtomSet(enterSearchModeOp);
   const closeSearch = useAtomSet(closeSearchOp);
   const setSearchQuery = useAtomSet(setSearchQueryOp);
 
   return {
-    search,
+    search: { active, query },
     openSearch,
     closeSearch,
     setSearchQuery,

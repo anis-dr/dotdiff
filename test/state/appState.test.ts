@@ -1,24 +1,25 @@
 /**
  * Tests for state/appState.ts - derived atoms and state computations
  */
-import { describe, expect, test } from "bun:test";
 import { Registry } from "@effect-atom/atom-react";
+import { describe, expect, test } from "bun:test";
 import {
-  filesAtom,
-  pendingAtom,
-  selectionAtom,
-  searchAtom,
-  effectiveDiffRowsAtom,
+  appModeAtom,
   currentRowAtom,
-  statsAtom,
-  pendingListAtom,
-  filteredRowIndicesAtom,
+  effectiveDiffRowsAtom,
   fileCountAtom,
-  rowCountAtom,
+  filesAtom,
+  filteredRowIndicesAtom,
+  pendingAtom,
   pendingKey,
+  pendingListAtom,
+  rowCountAtom,
+  selectionAtom,
+  statsAtom,
 } from "../../src/state/appState.js";
-import type { EnvFile, PendingChange, SearchState } from "../../src/types.js";
-import { FilePath } from "../../src/types.js";
+import type { AppMode, EnvFile, PendingChange } from "../../src/types.js";
+
+import { AppMode as AppModeConst, FilePath } from "../../src/types.js";
 
 // Helper to create EnvFile
 const createFile = (path: string, vars: Record<string, string>): EnvFile => ({
@@ -30,8 +31,8 @@ const createFile = (path: string, vars: Record<string, string>): EnvFile => ({
 interface TestState {
   files?: ReadonlyArray<EnvFile>;
   pending?: ReadonlyMap<string, PendingChange>;
-  selection?: { readonly row: number; readonly col: number };
-  search?: SearchState;
+  selection?: { readonly row: number; readonly col: number; };
+  appMode?: AppMode;
 }
 
 // Helper to create a registry with initial state
@@ -40,7 +41,7 @@ const createTestRegistry = (stateOverrides: TestState = {}) => {
   if (stateOverrides.files) registry.set(filesAtom, stateOverrides.files);
   if (stateOverrides.pending) registry.set(pendingAtom, stateOverrides.pending);
   if (stateOverrides.selection) registry.set(selectionAtom, stateOverrides.selection);
-  if (stateOverrides.search) registry.set(searchAtom, stateOverrides.search);
+  if (stateOverrides.appMode) registry.set(appModeAtom, stateOverrides.appMode);
   return registry;
 };
 
@@ -186,25 +187,25 @@ describe("pendingListAtom", () => {
 });
 
 describe("filteredRowIndicesAtom", () => {
-  test("returns all indices when search not active", () => {
+  test("returns all indices when in normal mode", () => {
     const files = [createFile(".env", { A: "1", B: "2", C: "3" })];
-    const registry = createTestRegistry({ files, search: { active: false, query: "" } });
+    const registry = createTestRegistry({ files, appMode: AppModeConst.Normal() });
     const indices = registry.get(filteredRowIndicesAtom);
 
     expect(indices).toEqual([0, 1, 2]);
   });
 
-  test("returns all indices when search active but query empty", () => {
+  test("returns all indices when search query empty", () => {
     const files = [createFile(".env", { A: "1", B: "2", C: "3" })];
-    const registry = createTestRegistry({ files, search: { active: true, query: "" } });
+    const registry = createTestRegistry({ files, appMode: AppModeConst.Search({ query: "" }) });
     const indices = registry.get(filteredRowIndicesAtom);
 
     expect(indices).toEqual([0, 1, 2]);
   });
 
-  test("filters by query when search active", () => {
+  test("filters by query when in search mode", () => {
     const files = [createFile(".env", { API_KEY: "1", API_URL: "2", DB_HOST: "3" })];
-    const registry = createTestRegistry({ files, search: { active: true, query: "api" } });
+    const registry = createTestRegistry({ files, appMode: AppModeConst.Search({ query: "api" }) });
     const indices = registry.get(filteredRowIndicesAtom);
 
     // Sorted: API_KEY, API_URL, DB_HOST - indices 0, 1 match "api"
@@ -213,7 +214,7 @@ describe("filteredRowIndicesAtom", () => {
 
   test("search is case insensitive", () => {
     const files = [createFile(".env", { API_KEY: "1", api_url: "2", DB_HOST: "3" })];
-    const registry = createTestRegistry({ files, search: { active: true, query: "API" } });
+    const registry = createTestRegistry({ files, appMode: AppModeConst.Search({ query: "API" }) });
     const indices = registry.get(filteredRowIndicesAtom);
 
     // Both API_KEY and api_url match "API" case-insensitively
@@ -222,7 +223,7 @@ describe("filteredRowIndicesAtom", () => {
 
   test("returns empty array when no matches", () => {
     const files = [createFile(".env", { A: "1", B: "2" })];
-    const registry = createTestRegistry({ files, search: { active: true, query: "xyz" } });
+    const registry = createTestRegistry({ files, appMode: AppModeConst.Search({ query: "xyz" }) });
     const indices = registry.get(filteredRowIndicesAtom);
 
     expect(indices).toEqual([]);

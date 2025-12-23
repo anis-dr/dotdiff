@@ -5,9 +5,7 @@ import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useTerminalDimensions } from "@opentui/react";
 import { useCallback, useEffect, useMemo } from "react";
 import {
-  useClipboardActions,
-  useDeleteActions,
-  useEditActions,
+  useAppMode,
   useEditMode,
   useFiles,
   useFileWatcher,
@@ -18,9 +16,8 @@ import {
   usePendingChanges,
   useSearch,
   useSelection,
-  useSyncActions,
-  useUndoActions,
 } from "../hooks/index.js";
+import { useEditActions } from "../hooks/useEditActions.js";
 import {
   currentRowAtom,
   effectiveDiffRowsAtom,
@@ -31,7 +28,7 @@ import {
 } from "../state/appState.js";
 import { saveChangesAtom } from "../state/runtime.js";
 import type { EnvFile } from "../types.js";
-import { Colors } from "../types.js";
+import { AppMode, Colors } from "../types.js";
 import { EnvRow } from "./EnvRow.js";
 import { Footer } from "./Footer.js";
 import { Header } from "./Header.js";
@@ -49,6 +46,9 @@ interface AppProps {
 export function App({ initialFiles, onQuit }: AppProps) {
   const { width: terminalWidth } = useTerminalDimensions();
 
+  // App mode for rendering decisions
+  const appMode = useAppMode();
+
   // Derived atoms
   const diffRows = useAtomValue(effectiveDiffRowsAtom);
   const currentRow = useAtomValue(currentRowAtom);
@@ -59,14 +59,13 @@ export function App({ initialFiles, onQuit }: AppProps) {
 
   // Focused hooks
   const { fileCount, files, setFiles } = useFiles();
-  const { cycleColumn, moveDown, moveLeft, moveRight, moveUp, nextDiff, nextMatch, prevDiff, prevMatch } =
-    useSelection();
-  const { closeSearch, openSearch, search, setSearchQuery } = useSearch();
-  const { closeModal, modal, openModal } = useModal();
-  const { editMode, enterAddMode } = useEditMode();
+  const { closeSearch, search, setSearchQuery } = useSearch();
+  const { closeModal } = useModal();
+  const { editMode } = useEditMode();
   const { showMessage } = useMessage();
   const { setColWidths } = useLayout();
   const { clearChanges } = usePendingChanges();
+  const { nextMatch } = useSelection();
 
   // Subscribe to file watcher events via PubSub
   useFileWatcher();
@@ -75,11 +74,7 @@ export function App({ initialFiles, onQuit }: AppProps) {
   const saveChanges = useAtomSet(saveChangesAtom, { mode: "promise" });
 
   // Action hooks
-  const { handleCopy, handlePaste, handlePasteAll } = useClipboardActions();
-  const { handleSyncToLeft, handleSyncToRight } = useSyncActions();
-  const { handleCancelEdit, handleEditInput, handleEnterEditMode, handleSaveEdit } = useEditActions();
-  const { handleDeleteAll, handleDeleteVariable } = useDeleteActions();
-  const { handleRevert, handleUndo, handleUndoAll } = useUndoActions();
+  const { handleEditInput, handleSaveEdit } = useEditActions();
 
   // Initialize files on mount
   useEffect(() => {
@@ -108,15 +103,6 @@ export function App({ initialFiles, onQuit }: AppProps) {
     setColWidths(colWidths);
   }, [colWidths, setColWidths]);
 
-  // Open save preview modal
-  const handleSave = useCallback(() => {
-    if (pendingList.length === 0) {
-      showMessage("⚠ No changes to save");
-      return;
-    }
-    openModal({ type: "save" });
-  }, [pendingList.length, showMessage, openModal]);
-
   // Actually perform the save using the effectful saveChangesAtom
   const doSave = useCallback(async () => {
     try {
@@ -132,19 +118,6 @@ export function App({ initialFiles, onQuit }: AppProps) {
     }
   }, [files, pendingList, saveChanges, setFiles, clearChanges, closeModal, showMessage]);
 
-  // Open quit confirmation modal if dirty
-  const handleQuit = useCallback(() => {
-    if (pendingList.length > 0) {
-      openModal({ type: "quit" });
-    } else {
-      onQuit();
-    }
-  }, [pendingList.length, openModal, onQuit]);
-
-  const handleHelp = useCallback(() => {
-    openModal({ type: "help" });
-  }, [openModal]);
-
   // Search handlers
   const handleSearchInput = useCallback(
     (value: string) => setSearchQuery(value),
@@ -156,42 +129,17 @@ export function App({ initialFiles, onQuit }: AppProps) {
     closeSearch();
   }, [nextMatch, closeSearch]);
 
-  // Keyboard bindings
-  useKeyBindings(editMode, search.active, modal, {
-    moveUp,
-    moveDown,
-    moveLeft,
-    moveRight,
-    cycleColumn,
-    copy: handleCopy,
-    paste: handlePaste,
-    pasteAll: handlePasteAll,
-    revert: handleRevert,
-    undo: handleUndo,
-    undoAll: handleUndoAll,
-    save: handleSave,
-    enterEditMode: handleEnterEditMode,
-    enterAddMode,
-    deleteVariable: handleDeleteVariable,
-    deleteAll: handleDeleteAll,
-    quit: handleQuit,
-    cancelEdit: handleCancelEdit,
-    openSearch,
-    closeSearch,
-    nextMatch,
-    prevMatch,
-    nextDiff,
-    prevDiff,
-    openHelp: handleHelp,
-    closeModal,
-    confirmModal: () => {
-      if (modal?.type === "quit") onQuit();
-      else if (modal?.type === "save") doSave();
-      else closeModal();
-    },
-    syncToLeft: handleSyncToLeft,
-    syncToRight: handleSyncToRight,
+  // Keyboard bindings - now uses simplified callback interface
+  useKeyBindings({
+    onConfirmSave: doSave,
+    onQuit,
   });
+
+  // Derive isScrollFocused from appMode
+  const isScrollFocused = appMode._tag === "Normal";
+
+  // Derive modal type for rendering
+  const modalType = AppMode.$is("Modal")(appMode) ? appMode.modalType : null;
 
   return (
     <box
@@ -248,7 +196,7 @@ export function App({ initialFiles, onQuit }: AppProps) {
 
       {/* Main diff view */}
       <box flexDirection="column" flexGrow={1} overflow="hidden">
-        <scrollbox focused={!editMode && !search.active && !modal} style={{ flexGrow: 1 }}>
+        <scrollbox focused={isScrollFocused} style={{ flexGrow: 1 }}>
           {diffRows.map((row, index) => (
             <EnvRow
               key={row.key || `new-${index}`}
@@ -268,15 +216,15 @@ export function App({ initialFiles, onQuit }: AppProps) {
       <Footer />
 
       {/* Modals */}
-      {modal?.type === "help" && <HelpOverlay onClose={closeModal} />}
-      {modal?.type === "quit" && (
+      {modalType === "help" && <HelpOverlay onClose={closeModal} />}
+      {modalType === "quit" && (
         <QuitConfirmModal
           pendingCount={pendingList.length}
           onConfirm={onQuit}
           onCancel={closeModal}
         />
       )}
-      {modal?.type === "save" && (
+      {modalType === "save" && (
         <SavePreviewModal
           files={files}
           changes={pendingList}

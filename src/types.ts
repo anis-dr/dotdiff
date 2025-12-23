@@ -3,7 +3,7 @@
  *
  * Uses Effect Schema for runtime validation and branded types for type safety.
  */
-import { Schema } from "effect";
+import { Data, Schema } from "effect";
 
 // =============================================================================
 // Branded Types
@@ -68,29 +68,42 @@ export class PendingChange extends Schema.Class<PendingChange>("PendingChange")(
 export const EditPhase = Schema.Literal("editValue", "addKey");
 export type EditPhase = typeof EditPhase.Type;
 
-/** Edit mode state */
-export class EditMode extends Schema.Class<EditMode>("EditMode")({
-  phase: EditPhase,
-  inputValue: Schema.String,
-  dirty: Schema.optional(Schema.Boolean),
-  isNewRow: Schema.optional(Schema.Boolean),
-}) {}
-
-/** Search state */
-export class SearchState extends Schema.Class<SearchState>("SearchState")({
-  active: Schema.Boolean,
-  query: Schema.String,
-}) {}
-
 /** Modal types */
 export const ModalType = Schema.Literal("quit", "save", "help");
 export type ModalType = typeof ModalType.Type;
 
-/** Modal state */
-export class ModalState extends Schema.Class<ModalState>("ModalState")({
-  type: ModalType,
-  data: Schema.optional(Schema.Unknown),
-}) {}
+// =============================================================================
+// Application Mode - State Machine
+// =============================================================================
+
+/**
+ * Application mode - discriminated union for keyboard state machine.
+ * Uses Effect's Data.TaggedEnum for type-safe constructors and pattern matching.
+ */
+export type AppMode = Data.TaggedEnum<{
+  Normal: {};
+  Search: { readonly query: string; };
+  Edit: {
+    readonly phase: EditPhase;
+    readonly value: string;
+    readonly dirty: boolean;
+    readonly isNewRow?: boolean;
+  };
+  Modal: { readonly modalType: ModalType; };
+}>;
+
+/**
+ * AppMode constructors and matchers.
+ *
+ * Usage:
+ * - `AppMode.Normal()` - create Normal mode
+ * - `AppMode.Search({ query: "" })` - create Search mode
+ * - `AppMode.Edit({ phase: "editValue", value: "foo", dirty: false })` - create Edit mode
+ * - `AppMode.Modal({ modalType: "help" })` - create Modal mode
+ * - `AppMode.$match(mode, { Normal: ..., Search: ..., Edit: ..., Modal: ... })` - pattern match
+ * - `AppMode.$is("Search")(mode)` - type guard
+ */
+export const AppMode = Data.taggedEnum<AppMode>();
 
 // =============================================================================
 // Helper Functions
