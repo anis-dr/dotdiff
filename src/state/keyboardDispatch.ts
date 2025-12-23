@@ -7,7 +7,7 @@
  */
 import { Atom } from "@effect-atom/atom-react";
 import { AppMode, type ModalType } from "../types.js";
-import { appModeAtom, currentRowAtom, messageAtom, selectionAtom } from "./appState.js";
+import { appModeAtom, currentRowAtom, effectiveDiffRowsAtom, messageAtom, selectionAtom } from "./appState.js";
 
 // =============================================================================
 // Mode Transition Operations
@@ -23,11 +23,22 @@ export const enterSearchModeOp = Atom.fnSync((_: void, get) => {
   get.set(appModeAtom, AppMode.Search({ query: "" }));
 });
 
-/** Update search query (only works in Search mode) */
+/** Update search query and jump to first match (only works in Search mode) */
 export const setSearchQueryOp = Atom.fnSync((query: string, get) => {
   const mode = get(appModeAtom);
   if (mode._tag === "Search") {
     get.set(appModeAtom, AppMode.Search({ query }));
+
+    // Jump to first match as user types (fzf-style)
+    if (query !== "") {
+      const rows = get(effectiveDiffRowsAtom);
+      const lowerQuery = query.toLowerCase();
+      const firstMatchIndex = rows.findIndex((row) => row.key.toLowerCase().includes(lowerQuery));
+      if (firstMatchIndex !== -1) {
+        const selection = get(selectionAtom);
+        get.set(selectionAtom, { ...selection, row: firstMatchIndex });
+      }
+    }
   }
 });
 

@@ -8,5 +8,4 @@ export { Kbd } from "./Kbd.js";
 export { Modal } from "./Modal.js";
 export { QuitConfirmModal } from "./QuitConfirmModal.js";
 export { SavePreviewModal } from "./SavePreviewModal.js";
-export { SearchOverlay } from "./SearchOverlay.js";
 export { ValueCell } from "./ValueCell.js";

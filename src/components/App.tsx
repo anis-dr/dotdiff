@@ -23,7 +23,6 @@ import {
   effectiveDiffRowsAtom,
   filteredRowIndicesAtom,
   pendingListAtom,
-  rowCountAtom,
   statsAtom,
 } from "../state/appState.js";
 import { saveChangesAtom } from "../state/runtime.js";
@@ -36,7 +35,6 @@ import { HelpOverlay } from "./HelpOverlay.js";
 import { Inspector } from "./Inspector.js";
 import { QuitConfirmModal } from "./QuitConfirmModal.js";
 import { SavePreviewModal } from "./SavePreviewModal.js";
-import { SearchOverlay } from "./SearchOverlay.js";
 
 interface AppProps {
   readonly initialFiles: ReadonlyArray<EnvFile>;
@@ -55,17 +53,16 @@ export function App({ initialFiles, onQuit }: AppProps) {
   const stats = useAtomValue(statsAtom);
   const pendingList = useAtomValue(pendingListAtom);
   const filteredRowIndices = useAtomValue(filteredRowIndicesAtom);
-  const rowCount = useAtomValue(rowCountAtom);
 
   // Focused hooks
   const { fileCount, files, setFiles } = useFiles();
-  const { closeSearch, search, setSearchQuery } = useSearch();
+  const { search, setSearchQuery } = useSearch();
   const { closeModal } = useModal();
-  const { editMode } = useEditMode();
+  useEditMode(); // Hook must be called but editMode not used directly
   const { showMessage } = useMessage();
   const { setColWidths } = useLayout();
   const { clearChanges } = usePendingChanges();
-  const { nextMatch } = useSelection();
+  const { selection } = useSelection();
 
   // Subscribe to file watcher events via PubSub
   useFileWatcher();
@@ -124,10 +121,11 @@ export function App({ initialFiles, onQuit }: AppProps) {
     [setSearchQuery],
   );
 
-  const handleSearchSubmit = useCallback(() => {
-    nextMatch();
-    closeSearch();
-  }, [nextMatch, closeSearch]);
+  // Compute current match index (1-based position in filtered results)
+  const currentMatchIndex = useMemo(() => {
+    const idx = filteredRowIndices.indexOf(selection.row);
+    return idx === -1 ? 0 : idx + 1;
+  }, [filteredRowIndices, selection.row]);
 
   // Keyboard bindings - now uses simplified callback interface
   useKeyBindings({
@@ -161,14 +159,7 @@ export function App({ initialFiles, onQuit }: AppProps) {
           <b>
             <span fg={Colors.selectedBg}>dotdiff</span>
           </b>
-          <span fg={Colors.dimText}>| {fileCount} files</span>
-          {search.active && search.query && (
-            <>
-              <span fg={Colors.dimText}>|</span>
-              <span fg={Colors.selectedBg}>/{search.query}</span>
-              <span fg={Colors.dimText}>({filteredRowIndices.length})</span>
-            </>
-          )}
+          <span fg={Colors.dimText}>{" | "}{fileCount} files</span>
         </text>
         <text>
           <span fg={Colors.identical}>{"● " + stats.identical}</span>
@@ -178,18 +169,6 @@ export function App({ initialFiles, onQuit }: AppProps) {
           <span fg={Colors.missing}>{"○ " + stats.missing}</span>
         </text>
       </box>
-
-      {/* Search overlay */}
-      {search.active && (
-        <SearchOverlay
-          query={search.query}
-          matchCount={filteredRowIndices.length}
-          totalCount={rowCount}
-          onInput={handleSearchInput}
-          onSubmit={handleSearchSubmit}
-          onCancel={closeSearch}
-        />
-      )}
 
       {/* Header with file names */}
       <Header />
@@ -212,8 +191,13 @@ export function App({ initialFiles, onQuit }: AppProps) {
       {/* Inspector */}
       <Inspector row={currentRow} />
 
-      {/* Footer */}
-      <Footer />
+      {/* Footer (includes search input when in search mode) */}
+      <Footer
+        searchQuery={search.query}
+        matchCount={filteredRowIndices.length}
+        currentMatchIndex={currentMatchIndex}
+        onSearchInput={handleSearchInput}
+      />
 
       {/* Modals */}
       {modalType === "help" && <HelpOverlay onClose={closeModal} />}

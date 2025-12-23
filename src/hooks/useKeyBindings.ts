@@ -106,8 +106,14 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
       },
 
       Search: () => {
-        // Search mode: escape closes (text input handled by overlay)
+        // Search mode: fzf-style navigation within filtered results
         if (key.name === "escape") {
+          closeSearch();
+        } else if (key.name === "up" || (key.ctrl && key.name === "p")) {
+          prevMatch();
+        } else if (key.name === "down" || (key.ctrl && key.name === "n")) {
+          nextMatch();
+        } else if (key.name === "return") {
           closeSearch();
         }
       },
@@ -206,13 +212,6 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
           // Search
           case "/":
             openSearch();
-            break;
-          case "n":
-            if (key.shift) {
-              prevMatch();
-            } else {
-              nextMatch();
-            }
             break;
 
           // Diff navigation
