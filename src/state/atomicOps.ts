@@ -14,6 +14,7 @@ import {
   clipboardAtom,
   colWidthsAtom,
   conflictsAtom,
+  currentRowAtom,
   editModeAtom,
   effectiveDiffRowsAtom,
   fileCountAtom,
@@ -23,6 +24,7 @@ import {
   modalAtom,
   pendingAtom,
   pendingKey,
+  pendingListAtom,
   rowCountAtom,
   searchAtom,
   selectionAtom,
@@ -453,3 +455,465 @@ export const setColWidthsOp = Atom.fnSync(
     get.set(colWidthsAtom, colWidths);
   },
 );
+
+// =============================================================================
+// Action Operations
+// =============================================================================
+// High-level operations that combine reads, business logic, and writes.
+// These move business logic from React hooks into atoms for better testability
+// and elimination of stale closure issues.
+
+/**
+ * Helper to get original value from files
+ */
+const getOriginalValue = (
+  files: ReadonlyArray<EnvFile>,
+  varKey: string,
+  fileIndex: number,
+): string | null => {
+  const file = files[fileIndex];
+  return file?.variables.get(varKey) ?? null;
+};
+
+// -----------------------------------------------------------------------------
+// Edit Actions
+// -----------------------------------------------------------------------------
+
+/**
+ * Enter edit mode for the current cell
+ */
+export const enterEditModeActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const selection = get(selectionAtom);
+  if (!currentRow) return;
+
+  const value = currentRow.values[selection.col];
+  const editMode: EditMode = {
+    phase: "editValue",
+    inputValue: value ?? "",
+    dirty: false,
+  };
+  get.set(editModeAtom, editMode);
+});
+
+/**
+ * Update edit input value (delegates to existing updateEditInputOp logic)
+ */
+export const editInputActionOp = Atom.fnSync((value: string, get) => {
+  const editMode = get(editModeAtom);
+  if (!editMode) return;
+
+  get.set(editModeAtom, {
+    ...editMode,
+    inputValue: value,
+    dirty: true,
+  });
+});
+
+/**
+ * Save edit - full logic: validates, computes newValue, upserts/removes change, sets message
+ */
+export const saveEditActionOp = Atom.fnSync(
+  (args: { submittedValue?: string; }, get) => {
+    const currentRow = get(currentRowAtom);
+    const editMode = get(editModeAtom);
+    const selection = get(selectionAtom);
+    const files = get(filesAtom);
+
+    if (!currentRow || !editMode) {
+      get.set(editModeAtom, null);
+      return;
+    }
+
+    const inputValue = args.submittedValue ?? editMode.inputValue;
+
+    // If user didn't type anything, just cancel
+    if (!editMode.dirty) {
+      get.set(editModeAtom, null);
+      get.set(messageAtom, "⊘ Edit cancelled");
+      return;
+    }
+
+    // Compute newValue (null for deletion, "" for empty, etc.)
+    let newValue: string | null;
+    const trimmed = inputValue.trim();
+    if (trimmed === "<null>" || trimmed === "<unset>") {
+      newValue = null;
+    } else if (trimmed === "\"\"" || trimmed === "''") {
+      newValue = "";
+    } else {
+      newValue = inputValue;
+    }
+
+    const originalValue = getOriginalValue(files, currentRow.key, selection.col);
+
+    if (newValue === originalValue) {
+      // Remove pending change
+      const pending = get(pendingAtom);
+      const key = pendingKey(currentRow.key, selection.col);
+      const newPending = new Map(pending);
+      newPending.delete(key);
+      get.set(pendingAtom, newPending);
+      get.set(editModeAtom, null);
+      get.set(messageAtom, "⊘ No change");
+      return;
+    }
+
+    // Upsert change
+    const pending = get(pendingAtom);
+    const key = pendingKey(currentRow.key, selection.col);
+    const newPending = new Map(pending);
+    newPending.set(key, {
+      key: currentRow.key,
+      fileIndex: selection.col,
+      oldValue: originalValue,
+      newValue,
+    });
+    get.set(pendingAtom, newPending);
+    get.set(editModeAtom, null);
+    get.set(messageAtom, "✓ Value updated");
+  },
+);
+
+/**
+ * Cancel edit - exits edit mode and shows message
+ */
+export const cancelEditActionOp = Atom.fnSync((_: void, get) => {
+  get.set(editModeAtom, null);
+  get.set(messageAtom, "⊘ Edit cancelled");
+});
+
+// -----------------------------------------------------------------------------
+// Clipboard Actions
+// -----------------------------------------------------------------------------
+
+/**
+ * Copy current cell value to clipboard
+ */
+export const copyActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const selection = get(selectionAtom);
+  if (!currentRow) return;
+
+  const value = currentRow.values[selection.col];
+  if (value === null || value === undefined) {
+    get.set(messageAtom, "⚠ Nothing to copy");
+    return;
+  }
+
+  get.set(clipboardAtom, { key: currentRow.key, value });
+  get.set(messageAtom, `📋 Copied ${currentRow.key}`);
+});
+
+/**
+ * Paste clipboard value to current cell
+ */
+export const pasteActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const clipboard = get(clipboardAtom);
+  const selection = get(selectionAtom);
+  const files = get(filesAtom);
+
+  if (!currentRow || !clipboard) {
+    get.set(messageAtom, "⚠ Clipboard empty");
+    return;
+  }
+
+  const originalValue = getOriginalValue(files, currentRow.key, selection.col);
+  if (clipboard.value === originalValue) {
+    get.set(messageAtom, "⚠ Same value");
+    return;
+  }
+
+  const pending = get(pendingAtom);
+  const key = pendingKey(currentRow.key, selection.col);
+  const newPending = new Map(pending);
+  newPending.set(key, {
+    key: currentRow.key,
+    fileIndex: selection.col,
+    oldValue: originalValue,
+    newValue: clipboard.value,
+  });
+  get.set(pendingAtom, newPending);
+  get.set(messageAtom, `📋 Pasted to ${currentRow.key}`);
+});
+
+/**
+ * Paste clipboard value to all files for current row
+ */
+export const pasteAllActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const clipboard = get(clipboardAtom);
+  const files = get(filesAtom);
+  const fileCount = get(fileCountAtom);
+
+  if (!currentRow || !clipboard) {
+    get.set(messageAtom, "⚠ Clipboard empty");
+    return;
+  }
+
+  const pending = get(pendingAtom);
+  const newPending = new Map(pending);
+  let changeCount = 0;
+
+  for (let i = 0; i < fileCount; i++) {
+    const originalValue = getOriginalValue(files, currentRow.key, i);
+    if (clipboard.value !== originalValue) {
+      const key = pendingKey(currentRow.key, i);
+      newPending.set(key, {
+        key: currentRow.key,
+        fileIndex: i,
+        oldValue: originalValue,
+        newValue: clipboard.value,
+      });
+      changeCount++;
+    }
+  }
+
+  if (changeCount === 0) {
+    get.set(messageAtom, "⚠ All files already have this value");
+    return;
+  }
+
+  get.set(pendingAtom, newPending);
+  get.set(messageAtom, `📋 Pasted to ${changeCount} files`);
+});
+
+// -----------------------------------------------------------------------------
+// Delete Actions
+// -----------------------------------------------------------------------------
+
+/**
+ * Mark current cell variable for deletion
+ */
+export const deleteVariableActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const selection = get(selectionAtom);
+  const files = get(filesAtom);
+  const pending = get(pendingAtom);
+
+  if (!currentRow) return;
+
+  const originalValue = getOriginalValue(files, currentRow.key, selection.col);
+  const pKey = pendingKey(currentRow.key, selection.col);
+  const pendingChange = pending.get(pKey);
+  const effectiveValue = pendingChange ? pendingChange.newValue : originalValue;
+
+  if (effectiveValue === null) {
+    get.set(messageAtom, "⚠ Already missing in this file");
+    return;
+  }
+
+  if (originalValue === null) {
+    // Value only exists due to pending change, revert it
+    const newPending = new Map(pending);
+    newPending.delete(pKey);
+    get.set(pendingAtom, newPending);
+    get.set(messageAtom, "↩ Reverted to missing");
+    return;
+  }
+
+  const newPending = new Map(pending);
+  newPending.set(pKey, {
+    key: currentRow.key,
+    fileIndex: selection.col,
+    oldValue: originalValue,
+    newValue: null,
+  });
+  get.set(pendingAtom, newPending);
+  get.set(messageAtom, `✗ Marked ${currentRow.key} for deletion`);
+});
+
+/**
+ * Mark current row variable for deletion in all files
+ */
+export const deleteAllActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const files = get(filesAtom);
+  const fileCount = get(fileCountAtom);
+  const pending = get(pendingAtom);
+  const pendingList = get(pendingListAtom);
+
+  if (!currentRow) return;
+
+  const newPending = new Map<string, PendingChange>();
+  let deleteCount = 0;
+
+  // First, copy pending changes that are NOT for this key
+  for (const [key, change] of pending) {
+    if (change.key !== currentRow.key) {
+      newPending.set(key, change);
+    }
+  }
+
+  // Now add deletion changes for all files where original exists
+  for (let i = 0; i < fileCount; i++) {
+    const originalValue = getOriginalValue(files, currentRow.key, i);
+    if (originalValue !== null) {
+      const key = pendingKey(currentRow.key, i);
+      newPending.set(key, {
+        key: currentRow.key,
+        fileIndex: i,
+        oldValue: originalValue,
+        newValue: null,
+      });
+      deleteCount++;
+    }
+  }
+
+  if (deleteCount === 0) {
+    const hadPendingForKey = pendingList.some((c) => c.key === currentRow.key);
+    if (hadPendingForKey) {
+      get.set(pendingAtom, newPending);
+      get.set(messageAtom, "↩ Reverted pending values (now missing everywhere)");
+    } else {
+      get.set(messageAtom, "⚠ Already missing in all files");
+    }
+    return;
+  }
+
+  get.set(pendingAtom, newPending);
+  get.set(messageAtom, `✗ Marked ${currentRow.key} for deletion in ${deleteCount} files`);
+});
+
+// -----------------------------------------------------------------------------
+// Sync Actions
+// -----------------------------------------------------------------------------
+
+/**
+ * Sync value from left file to right file (2-file mode only)
+ */
+export const syncToRightActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const fileCount = get(fileCountAtom);
+  const files = get(filesAtom);
+
+  if (!currentRow || fileCount !== 2) return;
+
+  const leftValue = currentRow.values[0] ?? null;
+  if (leftValue === null) {
+    get.set(messageAtom, "⚠ Left value is missing");
+    return;
+  }
+
+  const rightValue = currentRow.values[1] ?? null;
+  if (leftValue === rightValue) {
+    get.set(messageAtom, "⚠ Values already match");
+    return;
+  }
+
+  const pending = get(pendingAtom);
+  const key = pendingKey(currentRow.key, 1);
+  const newPending = new Map(pending);
+  newPending.set(key, {
+    key: currentRow.key,
+    fileIndex: 1,
+    oldValue: getOriginalValue(files, currentRow.key, 1),
+    newValue: leftValue,
+  });
+  get.set(pendingAtom, newPending);
+  get.set(messageAtom, "→ Synced to right");
+});
+
+/**
+ * Sync value from right file to left file (2-file mode only)
+ */
+export const syncToLeftActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const fileCount = get(fileCountAtom);
+  const files = get(filesAtom);
+
+  if (!currentRow || fileCount !== 2) return;
+
+  const rightValue = currentRow.values[1] ?? null;
+  if (rightValue === null) {
+    get.set(messageAtom, "⚠ Right value is missing");
+    return;
+  }
+
+  const leftValue = currentRow.values[0] ?? null;
+  if (rightValue === leftValue) {
+    get.set(messageAtom, "⚠ Values already match");
+    return;
+  }
+
+  const pending = get(pendingAtom);
+  const key = pendingKey(currentRow.key, 0);
+  const newPending = new Map(pending);
+  newPending.set(key, {
+    key: currentRow.key,
+    fileIndex: 0,
+    oldValue: getOriginalValue(files, currentRow.key, 0),
+    newValue: rightValue,
+  });
+  get.set(pendingAtom, newPending);
+  get.set(messageAtom, "← Synced to left");
+});
+
+// -----------------------------------------------------------------------------
+// Undo Actions
+// -----------------------------------------------------------------------------
+
+/**
+ * Revert pending change for current cell
+ */
+export const revertActionOp = Atom.fnSync((_: void, get) => {
+  const currentRow = get(currentRowAtom);
+  const selection = get(selectionAtom);
+  const pending = get(pendingAtom);
+
+  if (!currentRow) return;
+
+  const pKey = pendingKey(currentRow.key, selection.col);
+  if (!pending.has(pKey)) {
+    get.set(messageAtom, "⚠ No pending change to revert");
+    return;
+  }
+
+  const conflicts = get(conflictsAtom);
+  const newPending = new Map(pending);
+  newPending.delete(pKey);
+
+  const newConflicts = new Set(conflicts);
+  newConflicts.delete(pKey);
+
+  get.set(pendingAtom, newPending);
+  get.set(conflictsAtom, newConflicts);
+  get.set(messageAtom, "↩ Reverted to original");
+});
+
+/**
+ * Undo last pending change (LIFO)
+ */
+export const undoActionOp = Atom.fnSync((_: void, get) => {
+  const pending = get(pendingAtom);
+
+  if (pending.size === 0) {
+    get.set(messageAtom, "⚠ Nothing to undo");
+    return;
+  }
+
+  const keys = Array.from(pending.keys());
+  const lastKey = keys[keys.length - 1]!;
+
+  const newPending = new Map(pending);
+  newPending.delete(lastKey);
+  get.set(pendingAtom, newPending);
+  get.set(messageAtom, "↩ Undone");
+});
+
+/**
+ * Undo all pending changes
+ */
+export const undoAllActionOp = Atom.fnSync((_: void, get) => {
+  const pending = get(pendingAtom);
+
+  if (pending.size === 0) {
+    get.set(messageAtom, "⚠ Nothing to undo");
+    return;
+  }
+
+  get.set(pendingAtom, new Map());
+  get.set(conflictsAtom, new Set());
+  get.set(messageAtom, "↩ All changes undone");
+});

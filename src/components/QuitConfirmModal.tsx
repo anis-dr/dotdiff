@@ -2,6 +2,7 @@
  * QuitConfirmModal component - confirms quit with unsaved changes
  */
 import { Colors } from "../types.js";
+import { Kbd } from "./Kbd.js";
 import { Modal } from "./Modal.js";
 
 interface QuitConfirmModalProps {
@@ -19,12 +20,18 @@ export function QuitConfirmModal({
     <Modal
       title="Unsaved Changes"
       footer={
-        <text>
-          <span fg={Colors.missing}>y</span>
-          <span fg={Colors.dimText}>quit without saving</span>
-          <span fg={Colors.identical}>n</span>
-          <span fg={Colors.dimText}>cancel</span>
-        </text>
+        <box flexDirection="row">
+          <box paddingRight={4}>
+            <text>
+              <Kbd fg={Colors.missing}>y</Kbd>
+              <span fg={Colors.dimText}>{" quit without saving"}</span>
+            </text>
+          </box>
+          <text>
+            <Kbd fg={Colors.identical}>n</Kbd>
+            <span fg={Colors.dimText}>{" cancel"}</span>
+          </text>
+        </box>
       }
     >
       <text>

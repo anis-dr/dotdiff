@@ -111,7 +111,7 @@ export function EnvRow({
             (
               <box flexDirection="row">
                 <text>
-                  <span fg={Colors.selectedText}>{icon}</span>
+                  <span fg={Colors.selectedText}>{icon + " "}</span>
                 </text>
                 <input
                   ref={inputRef}
@@ -126,7 +126,7 @@ export function EnvRow({
             ) :
             (
               <text>
-                <span fg={color}>{icon}</span>
+                <span fg={color}>{icon + " "}</span>
                 {isSelectedRow ?
                   (
                     <b>

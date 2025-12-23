@@ -51,13 +51,13 @@ export function Inspector({ row }: InspectorProps) {
       {/* Key line */}
       <box flexDirection="row">
         <text>
-          <span fg={Colors.dimText}>Key:</span>
+          <span fg={Colors.dimText}>Key:{" "}</span>
           <b>
             <span fg={Colors.primaryText}>{row.key || "(new variable)"}</span>
           </b>
           {selectedFile && (
             <>
-              <span fg={Colors.dimText}>in</span>
+              <span fg={Colors.dimText}>{" "}in{" "}</span>
               <span fg={Colors.selectedBg}>{selectedFile.filename}</span>
             </>
           )}
@@ -72,21 +72,21 @@ export function Inspector({ row }: InspectorProps) {
               (
                 <>
                   <text>
-                    <span fg={Colors.dimText}>Old:</span>
+                    <span fg={Colors.dimText}>Old:{" "}</span>
                     <span fg={Colors.secondaryText}>
                       {formatDisplayValue(selectedPending.oldValue)}
                     </span>
-                    <span fg={Colors.missing}>(stale)</span>
+                    <span fg={Colors.missing}>{" "}(stale)</span>
                   </text>
                   <text>
-                    <span fg={Colors.dimText}>Disk:</span>
+                    <span fg={Colors.dimText}>Disk:{" "}</span>
                     <span fg={Colors.missing}>
                       {formatDisplayValue(diskValue)}
                     </span>
-                    <span fg={Colors.missing}>⚠ changed externally</span>
+                    <span fg={Colors.missing}>{" "}⚠ changed externally</span>
                   </text>
                   <text>
-                    <span fg={Colors.dimText}>Pending:</span>
+                    <span fg={Colors.dimText}>Pending:{" "}</span>
                     <span fg={Colors.pendingChange}>
                       {formatDisplayValue(selectedPending.newValue)}
                     </span>
@@ -96,17 +96,17 @@ export function Inspector({ row }: InspectorProps) {
               (
                 <>
                   <text>
-                    <span fg={Colors.dimText}>Old:</span>
+                    <span fg={Colors.dimText}>Old:{" "}</span>
                     <span fg={Colors.secondaryText}>
                       {formatDisplayValue(selectedPending.oldValue)}
                     </span>
                   </text>
                   <text>
-                    <span fg={Colors.dimText}>New:</span>
+                    <span fg={Colors.dimText}>New:{" "}</span>
                     <span fg={Colors.pendingChange}>
                       {formatDisplayValue(selectedPending.newValue)}
                     </span>
-                    {selectedPending.newValue === null && <span fg={Colors.missing}>(deleted)</span>}
+                    {selectedPending.newValue === null && <span fg={Colors.missing}>{" "}(deleted)</span>}
                   </text>
                 </>
               )}
@@ -114,7 +114,7 @@ export function Inspector({ row }: InspectorProps) {
         ) :
         (
           <text>
-            <span fg={Colors.dimText}>Value:</span>
+            <span fg={Colors.dimText}>Value:{" "}</span>
             <span fg={selectedValue === null ? Colors.missing : Colors.primaryText}>
               {formatDisplayValue(selectedValue)}
             </span>

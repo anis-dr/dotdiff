@@ -213,21 +213,21 @@ export function App({ initialFiles, onQuit }: AppProps) {
           <b>
             <span fg={Colors.selectedBg}>envy</span>
           </b>
-          <span fg={Colors.dimText}>│ {fileCount} files</span>
+          <span fg={Colors.dimText}>| {fileCount} files</span>
           {search.active && search.query && (
             <>
-              <span fg={Colors.dimText}>│</span>
+              <span fg={Colors.dimText}>|</span>
               <span fg={Colors.selectedBg}>/{search.query}</span>
               <span fg={Colors.dimText}>({filteredRowIndices.length})</span>
             </>
           )}
         </text>
         <text>
-          <span fg={Colors.identical}>● {stats.identical}</span>
-          <span fg={Colors.dimText}></span>
-          <span fg={Colors.different}>◐ {stats.different}</span>
-          <span fg={Colors.dimText}></span>
-          <span fg={Colors.missing}>○ {stats.missing}</span>
+          <span fg={Colors.identical}>{"● " + stats.identical}</span>
+          <span fg={Colors.dimText}>{"  "}</span>
+          <span fg={Colors.different}>{"◐ " + stats.different}</span>
+          <span fg={Colors.dimText}>{"  "}</span>
+          <span fg={Colors.missing}>{"○ " + stats.missing}</span>
         </text>
       </box>
 

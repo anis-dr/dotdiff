@@ -6,7 +6,7 @@
  */
 import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
-import type { PubSub, PubSub } from "effect";
+import type { PubSub } from "effect";
 import { Context, Effect, Layer, pipe, Stream } from "effect";
 import { FILE_WATCHER_DEBOUNCE_MS } from "../constants.js";
 

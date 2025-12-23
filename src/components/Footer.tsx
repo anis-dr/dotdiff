@@ -5,6 +5,23 @@ import { useAtomValue } from "@effect-atom/atom-react";
 import { appStateAtom, pendingListAtom } from "../state/appState.js";
 import { Colors } from "../types.js";
 import { truncate, TRUNCATE_CLIPBOARD } from "../utils/index.js";
+import { Kbd } from "./Kbd.js";
+
+interface KeyHint {
+  readonly keys: React.ReactNode;
+  readonly label: string;
+}
+
+function KeyHint({ keys, label }: KeyHint) {
+  return (
+    <box paddingRight={2}>
+      <text>
+        {keys}
+        <span fg={Colors.dimText}>{" " + label}</span>
+      </text>
+    </box>
+  );
+}
 
 export function Footer() {
   const state = useAtomValue(appStateAtom);
@@ -30,7 +47,7 @@ export function Footer() {
         {/* Clipboard indicator */}
         <box paddingLeft={1} paddingRight={2}>
           <text>
-            <span fg={Colors.dimText}>📋</span>
+            <span fg={Colors.dimText}>{"📋 "}</span>
             <span fg={clipboard ? Colors.primaryText : Colors.dimText}>
               {clipboardDisplay}
             </span>
@@ -40,11 +57,11 @@ export function Footer() {
         {/* Pending changes */}
         <box paddingRight={2}>
           <text>
-            <span fg={Colors.dimText}>│</span>
+            <span fg={Colors.dimText}>{"| "}</span>
             {pendingCount > 0 ?
               (
                 <>
-                  <span fg={Colors.pendingChange}>✎ {pendingCount}</span>
+                  <span fg={Colors.pendingChange}>{"✎ " + pendingCount + " "}</span>
                   <span fg={Colors.dimText}>pending</span>
                 </>
               ) :
@@ -56,9 +73,11 @@ export function Footer() {
         {conflictCount > 0 && (
           <box paddingRight={2}>
             <text>
-              <span fg={Colors.dimText}>│</span>
-              <span fg={Colors.missing}>⚠ {conflictCount}</span>
-              <span fg={Colors.dimText}>conflict{conflictCount !== 1 ? "s" : ""}</span>
+              <span fg={Colors.dimText}>{"| "}</span>
+              <span fg={Colors.missing}>{"⚠ " + conflictCount + " "}</span>
+              <span fg={Colors.dimText}>
+                {"conflict" + (conflictCount !== 1 ? "s" : "")}
+              </span>
             </text>
           </box>
         )}
@@ -67,8 +86,8 @@ export function Footer() {
         {message && (
           <box flexGrow={1}>
             <text>
-              <span fg={Colors.dimText}>│</span>
-              <span fg={Colors.selectedBg}>{message}</span>
+              <span fg={Colors.dimText}>{"| "}</span>
+              <span fg={Colors.selectedBg}>{" " + message}</span>
             </text>
           </box>
         )}
@@ -82,24 +101,68 @@ export function Footer() {
         paddingLeft={1}
         paddingRight={1}
       >
-        <text>
-          <span fg={Colors.secondaryText}>↑↓</span>
-          <span fg={Colors.dimText}>nav</span>
-          <span fg={Colors.selectedBg}>/</span>
-          <span fg={Colors.dimText}>search</span>
-          <span fg={Colors.different}>][</span>
-          <span fg={Colors.dimText}>diff</span>
-          <span fg={Colors.selectedBg}>e</span>
-          <span fg={Colors.dimText}>edit</span>
-          <span fg={Colors.different}>&lt;&gt;</span>
-          <span fg={Colors.dimText}>sync</span>
-          <span fg={Colors.pendingChange}>s</span>
-          <span fg={Colors.dimText}>save</span>
-          <span fg={Colors.missing}>q</span>
-          <span fg={Colors.dimText}>quit</span>
-          <span fg={Colors.secondaryText}>?</span>
-          <span fg={Colors.dimText}>help</span>
-        </text>
+        {(
+          [
+            {
+              keys: <Kbd fg={Colors.identical} wrap="none">↑↓</Kbd>,
+              label: "nav",
+            },
+            {
+              keys: <Kbd fg={Colors.selectedBg} wrap="none">/</Kbd>,
+              label: "search",
+            },
+            {
+              keys: (
+                <>
+                  <Kbd fg={Colors.different} wrap="none">
+                    ]
+                  </Kbd>
+                  <span fg={Colors.dimText}>{" / "}</span>
+                  <Kbd fg={Colors.different} wrap="none">
+                    [
+                  </Kbd>
+                </>
+              ),
+              label: "diff",
+            },
+            {
+              keys: (
+                <>
+                  <Kbd fg={Colors.selectedBg} wrap="none">e</Kbd>
+                  <span fg={Colors.dimText}>{" / "}</span>
+                  <Kbd fg={Colors.selectedBg} wrap="none">⏎</Kbd>
+                </>
+              ),
+              label: "edit",
+            },
+            {
+              keys: (
+                <>
+                  <Kbd fg={Colors.different} wrap="none">
+                    &lt;
+                  </Kbd>
+                  <span fg={Colors.dimText}>{" / "}</span>
+                  <Kbd fg={Colors.different} wrap="none">
+                    &gt;
+                  </Kbd>
+                </>
+              ),
+              label: "sync",
+            },
+            {
+              keys: <Kbd fg={Colors.pendingChange} wrap="none">s</Kbd>,
+              label: "save",
+            },
+            {
+              keys: <Kbd fg={Colors.missing} wrap="none">q</Kbd>,
+              label: "quit",
+            },
+            {
+              keys: <Kbd fg={Colors.secondaryText} wrap="none">?</Kbd>,
+              label: "help",
+            },
+          ] satisfies ReadonlyArray<KeyHint>
+        ).map((hint) => <KeyHint key={hint.label} {...hint} />)}
       </box>
     </box>
   );

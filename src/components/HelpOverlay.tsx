@@ -2,6 +2,7 @@
  * HelpOverlay component - shows all keybindings
  */
 import { Colors } from "../types.js";
+import { Kbd } from "./Kbd.js";
 import { Modal } from "./Modal.js";
 
 interface HelpOverlayProps {
@@ -42,11 +43,11 @@ export function HelpOverlay({ onClose: _onClose }: HelpOverlayProps) {
       title="Keybindings"
       footer={
         <text>
-          <span fg={Colors.dimText}>Press</span>
-          <span fg={Colors.selectedBg}>Esc</span>
-          <span fg={Colors.dimText}>or</span>
-          <span fg={Colors.selectedBg}>?</span>
-          <span fg={Colors.dimText}>to close</span>
+          <span fg={Colors.dimText}>{"Press "}</span>
+          <Kbd fg={Colors.selectedBg}>Esc</Kbd>
+          <span fg={Colors.dimText}>{" or "}</span>
+          <Kbd fg={Colors.selectedBg}>?</Kbd>
+          <span fg={Colors.dimText}>{" to close"}</span>
         </text>
       }
     >

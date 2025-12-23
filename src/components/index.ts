@@ -4,6 +4,7 @@ export { Footer } from "./Footer.js";
 export { Header } from "./Header.js";
 export { HelpOverlay } from "./HelpOverlay.js";
 export { Inspector } from "./Inspector.js";
+export { Kbd } from "./Kbd.js";
 export { Modal } from "./Modal.js";
 export { QuitConfirmModal } from "./QuitConfirmModal.js";
 export { SavePreviewModal } from "./SavePreviewModal.js";

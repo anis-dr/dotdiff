@@ -7,10 +7,11 @@
  */
 import { Registry, RegistryContext } from "@effect-atom/atom-react";
 import { Args, Command, HelpDoc, Span, ValidationError } from "@effect/cli";
+import { DevTools } from "@effect/experimental";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
-import { Console, Deferred, Effect, Layer, Stream } from "effect";
+import { Console, Deferred, Effect, Fiber, Layer, Stream } from "effect";
 import { App } from "./components/index.js";
 import {
   EnvDiffer,
@@ -92,10 +93,15 @@ const renderApp = (
       const renderer = yield* RendererResource;
 
       // Register process signal handlers for clean shutdown
-      const handleSigInt = () => {
-        Effect.runSync(Deferred.succeed(shutdownSignal, undefined));
-      };
-      const handleSigTerm = () => {
+      // Use 'on' instead of 'once' to ensure we catch repeated signals
+      let shuttingDown = false;
+      const handleShutdown = () => {
+        if (shuttingDown) {
+          // Second signal = force exit
+          process.stdout.write(TERMINAL_RESTORE);
+          process.exit(130);
+        }
+        shuttingDown = true;
         Effect.runSync(Deferred.succeed(shutdownSignal, undefined));
       };
       const handleUncaughtException = (err: Error) => {
@@ -111,16 +117,16 @@ const renderApp = (
         process.exit(1);
       };
 
-      process.once("SIGINT", handleSigInt);
-      process.once("SIGTERM", handleSigTerm);
+      process.on("SIGINT", handleShutdown);
+      process.on("SIGTERM", handleShutdown);
       process.once("uncaughtException", handleUncaughtException);
       process.once("unhandledRejection", handleUnhandledRejection);
 
       // Clean up signal handlers when scope closes
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
-          process.removeListener("SIGINT", handleSigInt);
-          process.removeListener("SIGTERM", handleSigTerm);
+          process.removeListener("SIGINT", handleShutdown);
+          process.removeListener("SIGTERM", handleShutdown);
           process.removeListener("uncaughtException", handleUncaughtException);
           process.removeListener(
             "unhandledRejection",
@@ -149,22 +155,34 @@ const renderApp = (
 /**
  * Start the file watcher and push events directly to the atom.
  * Runs as a background fiber.
+ *
+ * Uses Effect.race with shutdown signal to ensure immediate termination,
+ * bypassing any pending debounce timers in the stream.
  */
 const startFileWatcher = (
   filePaths: ReadonlyArray<string>,
   registry: Registry.Registry,
+  shutdownSignal: Deferred.Deferred<void>,
 ) =>
   Effect.gen(function*() {
     const watcher = yield* FileWatcher;
     const watchStream = watcher.watchFiles(filePaths);
 
-    // Push each file change event directly to the atom
-    yield* Stream.runForEach(watchStream, (event) =>
-      Effect.sync(() => {
-        registry.set(fileChangeEventAtom, event);
-      })).pipe(
-        Effect.catchAll((error) => Console.error(`File watcher error: ${String(error)}`)),
-      );
+    // Race the stream processing against the shutdown signal
+    // This ensures we exit immediately when shutdown is signaled,
+    // even if debounce timers are pending
+    yield* Effect.race(
+      watchStream.pipe(
+        Stream.runForEach((event) =>
+          Effect.sync(() => {
+            registry.set(fileChangeEventAtom, event);
+          })
+        ),
+      ),
+      Deferred.await(shutdownSignal),
+    ).pipe(
+      Effect.catchAll((error) => Console.error(`File watcher error: ${String(error)}`)),
+    );
   });
 
 // Main command
@@ -175,10 +193,14 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
 
     // Parse all env files
     yield* Console.log(`Loading ${files.length} env files...`);
-    const envFiles = yield* parser.parseFiles(files);
+    const envFiles = yield* parser.parseFiles(files).pipe(
+      Effect.withSpan("parseFiles", { attributes: { fileCount: files.length } }),
+    );
 
     // Compute initial stats
-    const diffRows = yield* differ.computeDiff(envFiles);
+    const diffRows = yield* differ.computeDiff(envFiles).pipe(
+      Effect.withSpan("computeDiff"),
+    );
     yield* Console.log(`Found ${diffRows.length} variables\n`);
 
     // Create shared registry for CLI ↔ React communication
@@ -188,12 +210,25 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
     const shutdownSignal = yield* Deferred.make<void>();
 
     // Start file watcher in background (pushes to shared registry)
+    // Pass shutdownSignal so watcher can terminate cleanly even with debounce timers
     const filePaths = envFiles.map((f) => f.path);
-    yield* startFileWatcher(filePaths, registry).pipe(Effect.fork);
+    const watcherFiber = yield* startFileWatcher(filePaths, registry, shutdownSignal).pipe(
+      Effect.withSpan("fileWatcher"),
+      Effect.interruptible,
+      Effect.fork,
+    );
 
     // Render the TUI and wait for quit
-    yield* renderApp(envFiles, shutdownSignal, registry);
-  })).pipe(
+    yield* renderApp(envFiles, shutdownSignal, registry).pipe(
+      Effect.withSpan("renderApp"),
+    );
+
+    // Interrupt file watcher - should be fast since we used Effect.race
+    yield* Fiber.interrupt(watcherFiber);
+
+    // Force exit to ensure any lingering timers/watchers don't keep process alive
+    return yield* Effect.sync(() => process.exit(0));
+  }).pipe(Effect.withSpan("envy.main"))).pipe(
     Command.withDescription("Compare and sync environment files side-by-side"),
   );
 
@@ -221,7 +256,13 @@ const ServicesLive = Layer.mergeAll(
   FileWatcherLive,
 );
 
-const MainLive = ServicesLive.pipe(Layer.provideMerge(BunContext.layer));
+// DevTools layer for Effect extension tracer/metrics
+const DevToolsLive = DevTools.layer();
+
+const MainLive = ServicesLive.pipe(
+  Layer.provideMerge(BunContext.layer),
+  Layer.provideMerge(DevToolsLive),
+);
 
 // Run with proper error handling
 const program = cli(process.argv).pipe(

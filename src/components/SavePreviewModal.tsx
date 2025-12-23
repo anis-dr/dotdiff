@@ -5,6 +5,7 @@ import { SAVE_PREVIEW_MAX_ITEMS } from "../constants.js";
 import type { EnvFile, PendingChange } from "../types.js";
 import { Colors } from "../types.js";
 import { groupChangesByFile, truncate } from "../utils/index.js";
+import { Kbd } from "./Kbd.js";
 import { Modal } from "./Modal.js";
 
 interface SavePreviewModalProps {
@@ -26,12 +27,18 @@ export function SavePreviewModal({
     <Modal
       title="Save Changes"
       footer={
-        <text>
-          <span fg={Colors.identical}>y</span>
-          <span fg={Colors.dimText}>save</span>
-          <span fg={Colors.missing}>n</span>
-          <span fg={Colors.dimText}>cancel</span>
-        </text>
+        <box flexDirection="row">
+          <box paddingRight={4}>
+            <text>
+              <Kbd fg={Colors.identical}>y</Kbd>
+              <span fg={Colors.dimText}>{" save"}</span>
+            </text>
+          </box>
+          <text>
+            <Kbd fg={Colors.missing}>n</Kbd>
+            <span fg={Colors.dimText}>{" cancel"}</span>
+          </text>
+        </box>
       }
     >
       <text>

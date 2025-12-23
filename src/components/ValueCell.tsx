@@ -117,7 +117,7 @@ function ValueText({
     return (
       <text>
         <span fg={textColor}>{truncatedPending}</span>
-        {hasConflict && <span fg={isSelectedCell ? Colors.selectedText : Colors.missing}>⚠</span>}
+        {hasConflict && <span fg={isSelectedCell ? Colors.selectedText : Colors.missing}>{" "}⚠</span>}
       </text>
     );
   }
