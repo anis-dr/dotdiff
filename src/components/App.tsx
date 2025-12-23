@@ -211,7 +211,7 @@ export function App({ initialFiles, onQuit }: AppProps) {
       >
         <text>
           <b>
-            <span fg={Colors.selectedBg}>envy</span>
+            <span fg={Colors.selectedBg}>dotdiff</span>
           </b>
           <span fg={Colors.dimText}>| {fileCount} files</span>
           {search.active && search.query && (

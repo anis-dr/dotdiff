@@ -14,7 +14,7 @@ import { parseEnvLines, patchEnvContent } from "./envFormat.js";
 /** Union of errors that can occur during file write operations */
 export type EnvWriterError = FileReadError | FileWriteError;
 
-export class EnvWriter extends Context.Tag("@envy/EnvWriter")<
+export class EnvWriter extends Context.Tag("@dotdiff/EnvWriter")<
   EnvWriter,
   {
     readonly applyChanges: (

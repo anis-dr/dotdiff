@@ -6,7 +6,7 @@ import type { DiffRow, EnvFile, VariableStatus } from "../types.js";
 import { getVariableStatus } from "../types.js";
 import { sortKeys } from "../utils/index.js";
 
-export class EnvDiffer extends Context.Tag("@envy/EnvDiffer")<
+export class EnvDiffer extends Context.Tag("@dotdiff/EnvDiffer")<
   EnvDiffer,
   {
     readonly computeDiff: (files: ReadonlyArray<EnvFile>) => Effect.Effect<ReadonlyArray<DiffRow>>;

@@ -1,4 +1,4 @@
-# envy
+# dotdiff
 
 A TUI tool to compare and sync .env files. Built with Effect, @effect/cli, and OpenTUI.
 

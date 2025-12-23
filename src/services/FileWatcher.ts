@@ -20,12 +20,12 @@ export interface FileChangeEvent {
  * PubSub for broadcasting file change events from the watcher to React atoms.
  * This provides a clean Effect-native bridge instead of mutable callbacks.
  */
-export class FileChangePubSub extends Context.Tag("@envy/FileChangePubSub")<
+export class FileChangePubSub extends Context.Tag("@dotdiff/FileChangePubSub")<
   FileChangePubSub,
   PubSub.PubSub<FileChangeEvent>
 >() {}
 
-export class FileWatcher extends Context.Tag("@envy/FileWatcher")<
+export class FileWatcher extends Context.Tag("@dotdiff/FileWatcher")<
   FileWatcher,
   {
     /**

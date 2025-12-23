@@ -1,5 +1,5 @@
 /**
- * envy CLI entry point
+ * dotdiff CLI entry point
  * Syncs .env files with a TUI diff viewer
  *
  * Uses Effect.acquireRelease for proper renderer lifecycle management
@@ -186,7 +186,7 @@ const startFileWatcher = (
   });
 
 // Main command
-const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
+const dotdiff = Command.make("dotdiff", { files: filesArg }, ({ files }) =>
   Effect.gen(function*() {
     const parser = yield* EnvParser;
     const differ = yield* EnvDiffer;
@@ -228,19 +228,19 @@ const envy = Command.make("envy", { files: filesArg }, ({ files }) =>
 
     // Force exit to ensure any lingering timers/watchers don't keep process alive
     return yield* Effect.sync(() => process.exit(0));
-  }).pipe(Effect.withSpan("envy.main"))).pipe(
+  }).pipe(Effect.withSpan("dotdiff.main"))).pipe(
     Command.withDescription("Compare and sync environment files side-by-side"),
   );
 
 // Build the CLI
-const cli = Command.run(envy, {
-  name: "envy",
+const cli = Command.run(dotdiff, {
+  name: "dotdiff",
   version: "1.0.0",
   summary: Span.text("A TUI tool to compare and sync .env files"),
   footer: HelpDoc.blocks([
     HelpDoc.h2("Examples"),
-    HelpDoc.p("$ envy .env.local .env.prod"),
-    HelpDoc.p("$ envy .env.dev .env.staging .env.prod"),
+    HelpDoc.p("$ dotdiff .env.local .env.prod"),
+    HelpDoc.p("$ dotdiff .env.dev .env.staging .env.prod"),
     HelpDoc.h2("Keybindings"),
     HelpDoc.p(
       "↑↓/jk Navigate | ←→/hl Column | c Copy | v Paste | s Save | q Quit",
@@ -270,8 +270,8 @@ const program = cli(process.argv).pipe(
   Effect.provide(MainLive),
   Effect.catchIf(ValidationError.isValidationError, () =>
     Effect.gen(function*() {
-      yield* Console.error("\nUsage: envy <file1> <file2> [file3...]");
-      yield* Console.error("Run 'envy --help' for more information.");
+      yield* Console.error("\nUsage: dotdiff <file1> <file2> [file3...]");
+      yield* Console.error("Run 'dotdiff --help' for more information.");
       process.exit(1);
     })),
 );

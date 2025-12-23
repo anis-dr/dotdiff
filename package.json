@@ -1,5 +1,5 @@
 {
-  "name": "envy",
+  "name": "dotdiff",
   "module": "src/index.tsx",
   "type": "module",
   "private": true,

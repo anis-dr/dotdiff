@@ -8,7 +8,7 @@ import { FileReadError } from "../errors.js";
 import { EnvFile, FilePath } from "../types.js";
 import { parseEnvToMap } from "./envFormat.js";
 
-export class EnvParser extends Context.Tag("@envy/EnvParser")<
+export class EnvParser extends Context.Tag("@dotdiff/EnvParser")<
   EnvParser,
   {
     readonly parseFile: (filePath: string) => Effect.Effect<EnvFile, FileReadError>;
