@@ -2,7 +2,7 @@
 
 A TUI tool to compare and sync `.env` files side-by-side. Built with Effect, @effect/cli, and OpenTUI.
 
-![TUI Screenshot](https://via.placeholder.com/800x400?text=dotdiff+TUI)
+![TUI Screenshot](images/ScreenShot.png)
 
 ## Features
 
