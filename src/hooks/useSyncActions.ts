@@ -4,10 +4,7 @@
  * Thin wrapper around atomic operations in atomicOps.ts
  */
 import { useAtomSet } from "@effect-atom/atom-react";
-import {
-  syncToLeftActionOp,
-  syncToRightActionOp,
-} from "../state/atomicOps.js";
+import { syncToLeftActionOp, syncToRightActionOp } from "../state/index.js";
 
 export interface UseSyncActions {
   handleSyncToRight: () => void;

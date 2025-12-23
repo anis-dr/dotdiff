@@ -3,25 +3,26 @@
  */
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { EnvDifferLive, EnvDiffer } from "../../src/services/EnvDiffer.js";
-import type { EnvFile, DiffRow } from "../../src/types.js";
-import { FilePath } from "../../src/types.js";
+import { EnvDiffer, EnvDifferLive } from "../../src/services/EnvDiffer.js";
+import type { DiffRow } from "../../src/types.js";
+import { EnvFile, EnvKey, FilePath } from "../../src/types.js";
 
 // Helper to run the computeDiff effect
-const runComputeDiff = (files: EnvFile[]): readonly DiffRow[] =>
+const runComputeDiff = (files: ReadonlyArray<EnvFile>): ReadonlyArray<DiffRow> =>
   Effect.runSync(
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const differ = yield* EnvDiffer;
       return yield* differ.computeDiff(files);
-    }).pipe(Effect.provide(EnvDifferLive))
+    }).pipe(Effect.provide(EnvDifferLive)),
   );
 
 // Helper to create EnvFile
-const createFile = (path: string, vars: Record<string, string>): EnvFile => ({
-  path: FilePath.make(path),
-  filename: path.split("/").pop() ?? path,
-  variables: new Map(Object.entries(vars)),
-});
+const createFile = (path: string, vars: Record<string, string>) =>
+  EnvFile.make({
+    path: FilePath.make(path),
+    filename: path.split("/").pop() ?? path,
+    variables: new Map(Object.entries(vars)),
+  });
 
 describe("EnvDiffer.computeDiff", () => {
   test("returns empty array for empty files array", () => {
@@ -107,7 +108,7 @@ describe("EnvDiffer.computeDiff", () => {
     const result = runComputeDiff(files);
 
     // All identical, should be sorted alphabetically
-    expect(result.map((r) => r.key)).toEqual(["APPLE", "MANGO", "ZEBRA"]);
+    expect(result.map((r) => r.key)).toEqual([EnvKey.make("APPLE"), EnvKey.make("MANGO"), EnvKey.make("ZEBRA")]);
   });
 
   test("case-insensitive alphabetical sorting", () => {
@@ -116,7 +117,7 @@ describe("EnvDiffer.computeDiff", () => {
     ];
     const result = runComputeDiff(files);
 
-    expect(result.map((r) => r.key)).toEqual(["apple", "MANGO", "Zebra"]);
+    expect(result.map((r) => r.key)).toEqual([EnvKey.make("apple"), EnvKey.make("MANGO"), EnvKey.make("Zebra")]);
   });
 
   test("handles three or more files", () => {
@@ -156,4 +157,3 @@ describe("EnvDiffer.computeDiff", () => {
     expect(result[0]?.values).toEqual(["", ""]);
   });
 });
-

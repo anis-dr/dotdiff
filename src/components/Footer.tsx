@@ -5,7 +5,7 @@
 import { useAtomValue } from "@effect-atom/atom-react";
 import type { InputRenderable } from "@opentui/core";
 import { useCallback, useRef } from "react";
-import { appStateAtom, isSearchActiveAtom, pendingListAtom } from "../state/appState.js";
+import { clipboardAtom, conflictsAtom, isSearchActiveAtom, messageAtom, pendingListAtom } from "../state/index.js";
 import { Colors } from "../types.js";
 import { truncate, TRUNCATE_CLIPBOARD } from "../utils/index.js";
 import { Kbd } from "./Kbd.js";
@@ -39,10 +39,11 @@ export function Footer({
   onSearchInput,
   searchQuery = "",
 }: FooterProps) {
-  const state = useAtomValue(appStateAtom);
+  const clipboard = useAtomValue(clipboardAtom);
+  const conflicts = useAtomValue(conflictsAtom);
+  const message = useAtomValue(messageAtom);
   const pendingList = useAtomValue(pendingListAtom);
   const isSearchActive = useAtomValue(isSearchActiveAtom);
-  const { clipboard, conflicts, message } = state;
 
   const inputRef = useRef<InputRenderable>(null);
 

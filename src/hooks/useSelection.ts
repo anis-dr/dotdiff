@@ -5,7 +5,6 @@
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import { selectionAtom } from "../state/appState.js";
 import {
   cycleColumnOp,
   moveDownOp,
@@ -16,8 +15,9 @@ import {
   nextMatchOp,
   prevDiffOp,
   prevMatchOp,
+  selectionAtom,
   setSelectionOp,
-} from "../state/atomicOps.js";
+} from "../state/index.js";
 
 export interface UseSelection {
   selection: { readonly row: number; readonly col: number; };

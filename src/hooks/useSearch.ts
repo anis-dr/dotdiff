@@ -4,8 +4,13 @@
  * Uses atomic operations from keyboardDispatch.ts for mode transitions.
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
-import { isSearchActiveAtom, searchQueryAtom } from "../state/appState.js";
-import { closeSearchOp, enterSearchModeOp, setSearchQueryOp } from "../state/keyboardDispatch.js";
+import {
+  closeSearchOp,
+  enterSearchModeOp,
+  isSearchActiveAtom,
+  searchQueryAtom,
+  setSearchQueryOp,
+} from "../state/index.js";
 
 export interface SearchState {
   readonly active: boolean;

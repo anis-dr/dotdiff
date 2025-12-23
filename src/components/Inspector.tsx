@@ -3,9 +3,9 @@
  * Displays old->new when pending changes exist
  */
 import { useAtomValue } from "@effect-atom/atom-react";
-import { appStateAtom, pendingKey } from "../state/appState.js";
+import { conflictsAtom, filesAtom, pendingAtom, pendingKey, selectionAtom } from "../state/index.js";
 import type { DiffRow } from "../types.js";
-import { Colors } from "../types.js";
+import { Colors, FileIndex } from "../types.js";
 import { formatDisplayValue } from "../utils/index.js";
 
 interface InspectorProps {
@@ -13,8 +13,10 @@ interface InspectorProps {
 }
 
 export function Inspector({ row }: InspectorProps) {
-  const state = useAtomValue(appStateAtom);
-  const { conflicts, files, pending, selection } = state;
+  const conflicts = useAtomValue(conflictsAtom);
+  const files = useAtomValue(filesAtom);
+  const pending = useAtomValue(pendingAtom);
+  const selection = useAtomValue(selectionAtom);
   const selectedCol = selection.col;
 
   if (!row) {
@@ -28,7 +30,7 @@ export function Inspector({ row }: InspectorProps) {
   }
 
   // Find pending change for selected cell
-  const pKey = pendingKey(row.key, selectedCol);
+  const pKey = pendingKey(row.key, FileIndex.make(selectedCol));
   const selectedPending = pending.get(pKey);
   const hasConflict = conflicts.has(pKey);
 

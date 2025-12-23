@@ -16,17 +16,18 @@ import {
   rowCountAtom,
   selectionAtom,
   statsAtom,
-} from "../../src/state/appState.js";
-import type { AppMode, EnvFile, PendingChange } from "../../src/types.js";
+} from "../../src/state/index.js";
+import type { AppMode } from "../../src/types.js";
 
-import { AppMode as AppModeConst, FilePath } from "../../src/types.js";
+import { AppMode as AppModeConst, EnvFile, EnvKey, FileIndex, FilePath, PendingChange } from "../../src/types.js";
 
 // Helper to create EnvFile
-const createFile = (path: string, vars: Record<string, string>): EnvFile => ({
-  path: FilePath.make(path),
-  filename: path.split("/").pop() ?? path,
-  variables: new Map(Object.entries(vars)),
-});
+const createFile = (path: string, vars: Record<string, string>): EnvFile =>
+  EnvFile.make({
+    path: FilePath.make(path),
+    filename: path.split("/").pop() ?? path,
+    variables: new Map(Object.entries(vars)),
+  });
 
 interface TestState {
   files?: ReadonlyArray<EnvFile>;
@@ -47,9 +48,9 @@ const createTestRegistry = (stateOverrides: TestState = {}) => {
 
 describe("pendingKey", () => {
   test("creates correct key format", () => {
-    expect(pendingKey("MY_VAR", 0)).toBe("MY_VAR:0");
-    expect(pendingKey("API_KEY", 2)).toBe("API_KEY:2");
-    expect(pendingKey("TEST", 99)).toBe("TEST:99");
+    expect(pendingKey(EnvKey.make("MY_VAR"), FileIndex.make(0))).toBe("MY_VAR:0");
+    expect(pendingKey(EnvKey.make("API_KEY"), FileIndex.make(2))).toBe("API_KEY:2");
+    expect(pendingKey(EnvKey.make("TEST"), FileIndex.make(99))).toBe("TEST:99");
   });
 });
 
@@ -73,8 +74,16 @@ describe("effectiveDiffRowsAtom", () => {
 
   test("includes new keys from pending changes", () => {
     const files = [createFile(".env", { EXISTING: "value" })];
-    const pending = new Map<string, PendingChange>([
-      ["NEW_KEY:0", { key: "NEW_KEY", fileIndex: 0, oldValue: null, newValue: "added" }],
+    const pending = new Map([
+      [
+        "NEW_KEY:0",
+        PendingChange.make({
+          key: EnvKey.make("NEW_KEY"),
+          fileIndex: FileIndex.make(0),
+          oldValue: null,
+          newValue: "added",
+        }),
+      ],
     ]);
     const registry = createTestRegistry({ files, pending });
     const rows = registry.get(effectiveDiffRowsAtom);
@@ -85,8 +94,16 @@ describe("effectiveDiffRowsAtom", () => {
 
   test("shows pending values instead of original values", () => {
     const files = [createFile(".env", { MY_VAR: "original" })];
-    const pending = new Map<string, PendingChange>([
-      ["MY_VAR:0", { key: "MY_VAR", fileIndex: 0, oldValue: "original", newValue: "modified" }],
+    const pending = new Map([
+      [
+        "MY_VAR:0",
+        PendingChange.make({
+          key: EnvKey.make("MY_VAR"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "original",
+          newValue: "modified",
+        }),
+      ],
     ]);
     const registry = createTestRegistry({ files, pending });
     const rows = registry.get(effectiveDiffRowsAtom);
@@ -97,8 +114,16 @@ describe("effectiveDiffRowsAtom", () => {
 
   test("shows null for pending deletions", () => {
     const files = [createFile(".env", { TO_DELETE: "value" })];
-    const pending = new Map<string, PendingChange>([
-      ["TO_DELETE:0", { key: "TO_DELETE", fileIndex: 0, oldValue: "value", newValue: null }],
+    const pending = new Map([
+      [
+        "TO_DELETE:0",
+        PendingChange.make({
+          key: EnvKey.make("TO_DELETE"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "value",
+          newValue: null,
+        }),
+      ],
     ]);
     const registry = createTestRegistry({ files, pending });
     const rows = registry.get(effectiveDiffRowsAtom);
@@ -112,7 +137,7 @@ describe("effectiveDiffRowsAtom", () => {
     const registry = createTestRegistry({ files });
     const rows = registry.get(effectiveDiffRowsAtom);
 
-    expect(rows.map((r) => r.key)).toEqual(["APPLE", "MANGO", "ZEBRA"]);
+    expect(rows.map((r) => r.key)).toEqual([EnvKey.make("APPLE"), EnvKey.make("MANGO"), EnvKey.make("ZEBRA")]);
   });
 });
 
@@ -123,7 +148,7 @@ describe("currentRowAtom", () => {
     const currentRow = registry.get(currentRowAtom);
 
     // Rows are sorted: A, B, C - so index 1 is B
-    expect(currentRow?.key).toBe("B");
+    expect(currentRow?.key).toBe(EnvKey.make("B"));
   });
 
   test("returns null when row index out of bounds", () => {
@@ -166,9 +191,15 @@ describe("statsAtom", () => {
 
 describe("pendingListAtom", () => {
   test("converts pending Map to array", () => {
-    const pending = new Map<string, PendingChange>([
-      ["A:0", { key: "A", fileIndex: 0, oldValue: "a", newValue: "b" }],
-      ["B:1", { key: "B", fileIndex: 1, oldValue: "c", newValue: "d" }],
+    const pending = new Map([
+      [
+        "A:0",
+        PendingChange.make({ key: EnvKey.make("A"), fileIndex: FileIndex.make(0), oldValue: "a", newValue: "b" }),
+      ],
+      [
+        "B:1",
+        PendingChange.make({ key: EnvKey.make("B"), fileIndex: FileIndex.make(1), oldValue: "c", newValue: "d" }),
+      ],
     ]);
     const registry = createTestRegistry({ pending });
     const list = registry.get(pendingListAtom);
@@ -261,8 +292,16 @@ describe("rowCountAtom", () => {
 
   test("includes rows from pending additions", () => {
     const files = [createFile(".env", { EXISTING: "val" })];
-    const pending = new Map<string, PendingChange>([
-      ["NEW:0", { key: "NEW", fileIndex: 0, oldValue: null, newValue: "added" }],
+    const pending = new Map([
+      [
+        "NEW:0",
+        PendingChange.make({
+          key: EnvKey.make("NEW"),
+          fileIndex: FileIndex.make(0),
+          oldValue: null,
+          newValue: "added",
+        }),
+      ],
     ]);
     const registry = createTestRegistry({ files, pending });
     expect(registry.get(rowCountAtom)).toBe(2);

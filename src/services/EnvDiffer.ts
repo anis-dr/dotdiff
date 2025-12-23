@@ -3,7 +3,7 @@
  */
 import { Context, Effect, Layer } from "effect";
 import type { DiffRow, EnvFile, VariableStatus } from "../types.js";
-import { getVariableStatus } from "../types.js";
+import { EnvKey, getVariableStatus } from "../types.js";
 import { sortKeys } from "../utils/index.js";
 
 export class EnvDiffer extends Context.Tag("@dotdiff/EnvDiffer")<
@@ -42,7 +42,7 @@ export const EnvDifferLive = Layer.succeed(
           const status = getVariableStatus(values);
 
           rows.push({
-            key,
+            key: EnvKey.make(key),
             values,
             status,
           });

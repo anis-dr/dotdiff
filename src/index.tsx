@@ -24,10 +24,10 @@ import {
   FileWatcher,
   FileWatcherLive,
 } from "./services/index.js";
-import { filesAtom } from "./state/appState.js";
-import { setMessageOp, updateFileFromDiskOp } from "./state/atomicOps.js";
 import { findFileIndex } from "./state/fileSync.js";
+import { filesAtom, setMessageOp, updateFileFromDiskOp } from "./state/index.js";
 import type { EnvFile } from "./types.js";
+import { FileIndex } from "./types.js";
 
 // CLI arguments: at least 2 .env file paths
 const filesArg = Args.path({ name: "files", exists: "yes" }).pipe(
@@ -195,7 +195,7 @@ const startFileWatcher = (
             const content = yield* fs.readFileString(file.path);
             const newVariables = parseEnvToMap(content);
 
-            registry.set(updateFileFromDiskOp, { fileIndex, newVariables });
+            registry.set(updateFileFromDiskOp, { fileIndex: FileIndex.make(fileIndex), newVariables });
             registry.set(setMessageOp, `↻ ${file.filename} updated`);
           }).pipe(
             Effect.catchAll((err) =>
@@ -253,8 +253,7 @@ const dotdiff = Command.make("dotdiff", { files: filesArg }, ({ files }) =>
     // Interrupt file watcher - should be fast since we used Effect.race
     yield* Fiber.interrupt(watcherFiber);
 
-    // Force exit to ensure any lingering timers/watchers don't keep process alive
-    return yield* Effect.sync(() => process.exit(0));
+    // Natural completion - event loop is empty after proper cleanup
   }).pipe(Effect.withSpan("dotdiff.main"))).pipe(
     Command.withDescription("Compare and sync environment files side-by-side"),
   );

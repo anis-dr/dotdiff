@@ -7,7 +7,8 @@
  */
 import { Atom } from "@effect-atom/atom-react";
 import { AppMode, type ModalType } from "../types.js";
-import { appModeAtom, currentRowAtom, effectiveDiffRowsAtom, messageAtom, selectionAtom } from "./appState.js";
+import { appModeAtom, messageAtom, pendingAtom, selectionAtom } from "./atoms/base.js";
+import { currentRowAtom, effectiveDiffRowsAtom } from "./atoms/derived.js";
 
 // =============================================================================
 // Mode Transition Operations
@@ -123,4 +124,18 @@ export const openModalOp = Atom.fnSync((modalType: ModalType, get) => {
 /** Close modal and return to normal */
 export const closeModalOp = Atom.fnSync((_: void, get) => {
   get.set(appModeAtom, AppMode.Normal());
+});
+
+// =============================================================================
+// Key Press Operations (encapsulate pending-check logic)
+// =============================================================================
+
+/** Handle save key press - opens modal or shows message */
+export const saveKeyPressedOp = Atom.fnSync((_: void, get) => {
+  const pending = get(pendingAtom);
+  if (pending.size === 0) {
+    get.set(messageAtom, "⚠ No changes to save");
+  } else {
+    get.set(appModeAtom, AppMode.Modal({ modalType: "save" }));
+  }
 });

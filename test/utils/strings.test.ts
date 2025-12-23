@@ -2,7 +2,7 @@
  * Tests for utils/strings.ts
  */
 import { describe, expect, test } from "bun:test";
-import { truncate, formatDisplayValue, TRUNCATE_CLIPBOARD } from "../../src/utils/strings.js";
+import { formatDisplayValue, truncate, TRUNCATE_CLIPBOARD } from "../../src/utils/strings.js";
 
 describe("truncate", () => {
   test("returns string unchanged if shorter than maxLen", () => {
@@ -42,7 +42,7 @@ describe("formatDisplayValue", () => {
   });
 
   test("returns '\"\"' for empty string", () => {
-    expect(formatDisplayValue("")).toBe('""');
+    expect(formatDisplayValue("")).toBe("\"\"");
   });
 
   test("returns value unchanged for normal strings", () => {
@@ -56,4 +56,3 @@ describe("formatDisplayValue", () => {
     expect(formatDisplayValue("  ")).toBe("  ");
   });
 });
-

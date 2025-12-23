@@ -4,8 +4,7 @@
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
-import { colWidthsAtom } from "../state/appState.js";
-import { setColWidthsOp } from "../state/atomicOps.js";
+import { colWidthsAtom, setColWidthsOp } from "../state/index.js";
 
 export interface UseLayout {
   colWidths: ReadonlyArray<number>;

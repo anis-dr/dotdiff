@@ -4,10 +4,7 @@
  * Thin wrapper around atomic operations in atomicOps.ts
  */
 import { useAtomSet } from "@effect-atom/atom-react";
-import {
-  deleteAllActionOp,
-  deleteVariableActionOp,
-} from "../state/atomicOps.js";
+import { deleteAllActionOp, deleteVariableActionOp } from "../state/index.js";
 
 export interface UseDeleteActions {
   handleDeleteVariable: () => void;

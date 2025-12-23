@@ -7,8 +7,7 @@
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback, useEffect, useRef } from "react";
 import { MESSAGE_DISPLAY_DURATION_MS } from "../constants.js";
-import { messageAtom } from "../state/appState.js";
-import { setMessageOp } from "../state/atomicOps.js";
+import { messageAtom, setMessageOp } from "../state/index.js";
 
 export interface UseMessage {
   message: string | null;

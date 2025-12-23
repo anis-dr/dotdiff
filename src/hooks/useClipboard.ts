@@ -4,8 +4,7 @@
  * Uses atomic operations from atomicOps.ts for clean state updates.
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
-import { clipboardAtom } from "../state/appState.js";
-import { setClipboardOp } from "../state/atomicOps.js";
+import { clipboardAtom, setClipboardOp } from "../state/index.js";
 import type { Clipboard } from "../types.js";
 
 export interface UseClipboard {

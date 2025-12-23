@@ -4,11 +4,7 @@
  * Thin wrapper around atomic operations in atomicOps.ts
  */
 import { useAtomSet } from "@effect-atom/atom-react";
-import {
-  copyActionOp,
-  pasteActionOp,
-  pasteAllActionOp,
-} from "../state/atomicOps.js";
+import { copyActionOp, pasteActionOp, pasteAllActionOp } from "../state/index.js";
 
 export interface UseClipboardActions {
   handleCopy: () => void;

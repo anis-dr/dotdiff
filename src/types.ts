@@ -45,21 +45,21 @@ export class EnvFile extends Schema.Class<EnvFile>("EnvFile")({
 
 /** A single row in the diff view */
 export class DiffRow extends Schema.Class<DiffRow>("DiffRow")({
-  key: Schema.String,
+  key: EnvKey,
   values: Schema.Array(Schema.NullOr(Schema.String)),
   status: VariableStatus,
 }) {}
 
 /** Clipboard state for copy/paste */
 export class Clipboard extends Schema.Class<Clipboard>("Clipboard")({
-  key: Schema.String,
+  key: EnvKey,
   value: Schema.String,
 }) {}
 
 /** A pending change to be applied */
 export class PendingChange extends Schema.Class<PendingChange>("PendingChange")({
-  key: Schema.String,
-  fileIndex: Schema.Number,
+  key: EnvKey,
+  fileIndex: FileIndex,
   oldValue: Schema.NullOr(Schema.String),
   newValue: Schema.NullOr(Schema.String),
 }) {}

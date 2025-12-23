@@ -20,11 +20,11 @@ import {
   currentRowAtom,
   effectiveDiffRowsAtom,
   filteredRowIndicesAtom,
+  onSaveCompleteOp,
   pendingListAtom,
+  saveChangesAtom,
   statsAtom,
-} from "../state/appState.js";
-import { onSaveCompleteOp } from "../state/atomicOps.js";
-import { saveChangesAtom } from "../state/runtime.js";
+} from "../state/index.js";
 import type { EnvFile } from "../types.js";
 import { AppMode, Colors } from "../types.js";
 import { EnvRow } from "./EnvRow.js";

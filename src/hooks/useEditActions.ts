@@ -5,8 +5,7 @@
  */
 import { useAtomSet } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import { cancelEditActionOp, editInputActionOp, saveEditActionOp } from "../state/atomicOps.js";
-import { enterEditModeActionOp } from "../state/keyboardDispatch.js";
+import { cancelEditActionOp, editInputActionOp, enterEditModeActionOp, saveEditActionOp } from "../state/index.js";
 
 export interface UseEditActions {
   handleEnterEditMode: () => void;

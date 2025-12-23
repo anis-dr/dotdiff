@@ -1,15 +1,14 @@
 /**
  * Integration tests for EnvWriter service
  */
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { Effect, Layer } from "effect";
 import { BunFileSystem } from "@effect/platform-bun";
-import { EnvWriter, EnvWriterLive } from "../../src/services/EnvWriter.js";
-import type { EnvFile, PendingChange } from "../../src/types.js";
-import { FilePath } from "../../src/types.js";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { Effect, Layer } from "effect";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
+import { EnvWriter, EnvWriterLive } from "../../src/services/EnvWriter.js";
+import { EnvFile, EnvKey, FileIndex, FilePath, PendingChange } from "../../src/types.js";
 
 // Test layer combining EnvWriter with BunFileSystem
 const TestLayer = Layer.provide(EnvWriterLive, BunFileSystem.layer);
@@ -41,11 +40,12 @@ describe("EnvWriter", () => {
     return fs.readFileSync(filePath, "utf-8");
   };
 
-  const createEnvFile = (filePath: string, vars: Record<string, string>): EnvFile => ({
-    path: FilePath.make(filePath),
-    filename: path.basename(filePath),
-    variables: new Map(Object.entries(vars)),
-  });
+  const createEnvFile = (filePath: string, vars: Record<string, string>) =>
+    EnvFile.make({
+      path: FilePath.make(filePath),
+      filename: path.basename(filePath),
+      variables: new Map(Object.entries(vars)),
+    });
 
   describe("applyChanges", () => {
     test("modifies existing values", async () => {
@@ -53,19 +53,24 @@ describe("EnvWriter", () => {
         ".env",
         `API_KEY=old_key
 DATABASE_URL=postgres://localhost/db
-`
+`,
       );
 
       const files = [createEnvFile(filePath, { API_KEY: "old_key", DATABASE_URL: "postgres://localhost/db" })];
-      const changes: PendingChange[] = [
-        { key: "API_KEY", fileIndex: 0, oldValue: "old_key", newValue: "new_key" },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("API_KEY"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "old_key",
+          newValue: "new_key",
+        }),
       ];
 
       await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       const content = readTempFile(filePath);
@@ -77,19 +82,24 @@ DATABASE_URL=postgres://localhost/db
       const filePath = writeTempFile(
         ".env",
         `EXISTING=value
-`
+`,
       );
 
       const files = [createEnvFile(filePath, { EXISTING: "value" })];
-      const changes: PendingChange[] = [
-        { key: "NEW_KEY", fileIndex: 0, oldValue: null, newValue: "new_value" },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("NEW_KEY"),
+          fileIndex: FileIndex.make(0),
+          oldValue: null,
+          newValue: "new_value",
+        }),
       ];
 
       await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       const content = readTempFile(filePath);
@@ -102,19 +112,24 @@ DATABASE_URL=postgres://localhost/db
         ".env",
         `KEEP=value
 DELETE_ME=gone
-`
+`,
       );
 
       const files = [createEnvFile(filePath, { KEEP: "value", DELETE_ME: "gone" })];
-      const changes: PendingChange[] = [
-        { key: "DELETE_ME", fileIndex: 0, oldValue: "gone", newValue: null },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("DELETE_ME"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "gone",
+          newValue: null,
+        }),
       ];
 
       await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       const content = readTempFile(filePath);
@@ -128,21 +143,36 @@ DELETE_ME=gone
         `MODIFY=old
 DELETE=gone
 KEEP=same
-`
+`,
       );
 
       const files = [createEnvFile(filePath, { MODIFY: "old", DELETE: "gone", KEEP: "same" })];
-      const changes: PendingChange[] = [
-        { key: "MODIFY", fileIndex: 0, oldValue: "old", newValue: "new" },
-        { key: "DELETE", fileIndex: 0, oldValue: "gone", newValue: null },
-        { key: "ADD", fileIndex: 0, oldValue: null, newValue: "added" },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("MODIFY"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "old",
+          newValue: "new",
+        }),
+        PendingChange.make({
+          key: EnvKey.make("DELETE"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "gone",
+          newValue: null,
+        }),
+        PendingChange.make({
+          key: EnvKey.make("ADD"),
+          fileIndex: FileIndex.make(0),
+          oldValue: null,
+          newValue: "added",
+        }),
       ];
 
       await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       const content = readTempFile(filePath);
@@ -162,19 +192,24 @@ API_KEY=old_key
 
 # Database section
 DB_HOST=localhost
-`
+`,
       );
 
       const files = [createEnvFile(filePath, { API_KEY: "old_key", DB_HOST: "localhost" })];
-      const changes: PendingChange[] = [
-        { key: "API_KEY", fileIndex: 0, oldValue: "old_key", newValue: "new_key" },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("API_KEY"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "old_key",
+          newValue: "new_key",
+        }),
       ];
 
       await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       const content = readTempFile(filePath);
@@ -194,15 +229,20 @@ DB_HOST=localhost
       ];
 
       // Only change file 0
-      const changes: PendingChange[] = [
-        { key: "LOCAL", fileIndex: 0, oldValue: "value", newValue: "modified" },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("LOCAL"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "value",
+          newValue: "modified",
+        }),
       ];
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       // File 1 should be unchanged
@@ -221,16 +261,26 @@ DB_HOST=localhost
         createEnvFile(file2Path, { KEY: "prod" }),
       ];
 
-      const changes: PendingChange[] = [
-        { key: "KEY", fileIndex: 0, oldValue: "local", newValue: "new_local" },
-        { key: "KEY", fileIndex: 1, oldValue: "prod", newValue: "new_prod" },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("KEY"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "local",
+          newValue: "new_local",
+        }),
+        PendingChange.make({
+          key: EnvKey.make("KEY"),
+          fileIndex: FileIndex.make(1),
+          oldValue: "prod",
+          newValue: "new_prod",
+        }),
       ];
 
       await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       expect(readTempFile(file1Path)).toContain("KEY=new_local");
@@ -241,16 +291,26 @@ DB_HOST=localhost
       const filePath = writeTempFile(".env", "OLD=value\n");
 
       const files = [createEnvFile(filePath, { OLD: "value" })];
-      const changes: PendingChange[] = [
-        { key: "OLD", fileIndex: 0, oldValue: "value", newValue: null }, // delete
-        { key: "NEW", fileIndex: 0, oldValue: null, newValue: "added" }, // add
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("OLD"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "value",
+          newValue: null,
+        }), // delete
+        PendingChange.make({
+          key: EnvKey.make("NEW"),
+          fileIndex: FileIndex.make(0),
+          oldValue: null,
+          newValue: "added",
+        }), // add
       ];
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       expect(result[0]?.variables.has("OLD")).toBe(false);
@@ -261,13 +321,13 @@ DB_HOST=localhost
       const filePath = writeTempFile(".env", "KEY=value\n");
 
       const files = [createEnvFile(filePath, { KEY: "value" })];
-      const changes: PendingChange[] = [];
+      const changes: Array<PendingChange> = [];
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       expect(result).toHaveLength(1);
@@ -278,20 +338,24 @@ DB_HOST=localhost
       const filePath = writeTempFile(".env", "KEY=simple\n");
 
       const files = [createEnvFile(filePath, { KEY: "simple" })];
-      const changes: PendingChange[] = [
-        { key: "KEY", fileIndex: 0, oldValue: "simple", newValue: "value with spaces" },
+      const changes = [
+        PendingChange.make({
+          key: EnvKey.make("KEY"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "simple",
+          newValue: "value with spaces",
+        }),
       ];
 
       await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const writer = yield* EnvWriter;
           return yield* writer.applyChanges(files, changes);
-        })
+        }),
       );
 
       const content = readTempFile(filePath);
-      expect(content).toContain('KEY="value with spaces"');
+      expect(content).toContain("KEY=\"value with spaces\"");
     });
   });
 });
-

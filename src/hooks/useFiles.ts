@@ -5,16 +5,15 @@
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import { fileCountAtom, filesAtom } from "../state/appState.js";
-import { setFilesOp, updateFileFromDiskOp } from "../state/atomicOps.js";
-import type { EnvFile } from "../types.js";
+import { fileCountAtom, filesAtom, setFilesOp, updateFileFromDiskOp } from "../state/index.js";
+import type { EnvFile, EnvKey, FileIndex } from "../types.js";
 
 export interface UseFiles {
   files: ReadonlyArray<EnvFile>;
   fileCount: number;
   setFiles: (files: ReadonlyArray<EnvFile>) => void;
-  updateFileFromDisk: (fileIndex: number, newVariables: ReadonlyMap<string, string>) => void;
-  getOriginalValue: (varKey: string, fileIndex: number) => string | null;
+  updateFileFromDisk: (fileIndex: FileIndex, newVariables: ReadonlyMap<string, string>) => void;
+  getOriginalValue: (varKey: EnvKey, fileIndex: FileIndex) => string | null;
 }
 
 export function useFiles(): UseFiles {
@@ -28,7 +27,7 @@ export function useFiles(): UseFiles {
 
   // Wrapper to match expected signature
   const updateFileFromDisk = useCallback(
-    (fileIndex: number, newVariables: ReadonlyMap<string, string>) => {
+    (fileIndex: FileIndex, newVariables: ReadonlyMap<string, string>) => {
       doUpdateFileFromDisk({ fileIndex, newVariables });
     },
     [doUpdateFileFromDisk],
@@ -36,7 +35,7 @@ export function useFiles(): UseFiles {
 
   // Pure read operation - no atomic op needed
   const getOriginalValue = useCallback(
-    (varKey: string, fileIndex: number): string | null => {
+    (varKey: EnvKey, fileIndex: FileIndex): string | null => {
       const file = files[fileIndex];
       if (!file) return null;
       return file.variables.get(varKey) ?? null;

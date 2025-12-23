@@ -5,16 +5,9 @@
 import { useAtomValue } from "@effect-atom/atom-react";
 import type { InputRenderable } from "@opentui/core";
 import { useCallback, useRef } from "react";
-import {
-  colWidthsAtom,
-  conflictsAtom,
-  editModeAtom,
-  pendingAtom,
-  pendingKey,
-  selectionAtom,
-} from "../state/appState.js";
+import { colWidthsAtom, conflictsAtom, editModeAtom, pendingAtom, pendingKey, selectionAtom } from "../state/index.js";
 import type { DiffRow, VariableStatus } from "../types.js";
-import { Colors, getVariableStatus } from "../types.js";
+import { Colors, FileIndex, getVariableStatus } from "../types.js";
 import { truncate } from "../utils/index.js";
 import { ValueCell } from "./ValueCell.js";
 
@@ -64,7 +57,7 @@ export function EnvRow({
   // Find pending changes for this row
   const pendingByFile = new Map<number, { oldValue: string | null; newValue: string | null; }>();
   for (let i = 0; i < row.values.length; i++) {
-    const pKey = pendingKey(row.key, i);
+    const pKey = pendingKey(row.key, FileIndex.make(i));
     const change = pending.get(pKey);
     if (change) {
       pendingByFile.set(i, { oldValue: change.oldValue, newValue: change.newValue });
@@ -83,7 +76,9 @@ export function EnvRow({
   const hasAnyPending = pendingByFile.size > 0;
 
   // Check for conflicts
-  const hasAnyConflict = Array.from(pendingByFile.keys()).some((i) => conflicts.has(pendingKey(row.key, i)));
+  const hasAnyConflict = Array.from(pendingByFile.keys()).some((i) =>
+    conflicts.has(pendingKey(row.key, FileIndex.make(i)))
+  );
 
   const handlePaste = useCallback((e: { text: string; }) => {
     inputRef.current?.insertText(e.text);
@@ -161,7 +156,7 @@ export function EnvRow({
           const isEditingThisCell = isEditingValue && isSelectedCell;
           const pendingChange = pendingByFile.get(fileIndex);
           const hasPending = pendingChange !== undefined;
-          const hasConflict = conflicts.has(pendingKey(row.key, fileIndex));
+          const hasConflict = conflicts.has(pendingKey(row.key, FileIndex.make(fileIndex)));
           const width = colWidths[fileIndex + 1] ?? 20;
 
           return (

@@ -76,4 +76,3 @@ describe("findFileIndex", () => {
     expect(findFileIndex(files, "C:\\Users\\dev\\project\\.env")).toBe(0);
   });
 });
-

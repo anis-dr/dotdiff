@@ -5,27 +5,30 @@
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import { conflictsAtom, pendingAtom, pendingKey, pendingListAtom } from "../state/appState.js";
 import {
   addChangesOp,
   clearChangesOp,
+  conflictsAtom,
+  pendingAtom,
+  pendingKey,
+  pendingListAtom,
   removeChangeOp,
   removeChangesForKeyOp,
   undoLastOp,
   upsertChangeOp,
-} from "../state/atomicOps.js";
-import type { PendingChange } from "../types.js";
+} from "../state/index.js";
+import type { EnvKey, FileIndex, PendingChange } from "../types.js";
 
 export interface UsePendingChanges {
   pending: ReadonlyMap<string, PendingChange>;
   pendingList: ReadonlyArray<PendingChange>;
   conflicts: ReadonlySet<string>;
   upsertChange: (change: PendingChange) => void;
-  removeChange: (varKey: string, fileIndex: number) => void;
-  removeChangesForKey: (varKey: string, excludeFileIndex?: number) => void;
+  removeChange: (varKey: EnvKey, fileIndex: FileIndex) => void;
+  removeChangesForKey: (varKey: EnvKey, excludeFileIndex?: FileIndex) => void;
   clearChanges: () => void;
   undoLast: () => boolean;
-  findChange: (varKey: string, fileIndex: number) => PendingChange | undefined;
+  findChange: (varKey: EnvKey, fileIndex: FileIndex) => PendingChange | undefined;
   addChanges: (changes: ReadonlyArray<PendingChange>) => void;
 }
 
@@ -45,7 +48,7 @@ export function usePendingChanges(): UsePendingChanges {
 
   // Wrapper for removeChange to match expected signature
   const removeChange = useCallback(
-    (varKey: string, fileIndex: number) => {
+    (varKey: EnvKey, fileIndex: FileIndex) => {
       doRemoveChange({ varKey, fileIndex });
     },
     [doRemoveChange],
@@ -53,7 +56,7 @@ export function usePendingChanges(): UsePendingChanges {
 
   // Wrapper for removeChangesForKey to match expected signature
   const removeChangesForKey = useCallback(
-    (varKey: string, excludeFileIndex?: number) => {
+    (varKey: EnvKey, excludeFileIndex?: FileIndex) => {
       if (excludeFileIndex !== undefined) {
         doRemoveChangesForKey({ varKey, excludeFileIndex });
       } else {
@@ -72,7 +75,7 @@ export function usePendingChanges(): UsePendingChanges {
 
   // findChange is a pure read operation, doesn't need atomic op
   const findChange = useCallback(
-    (varKey: string, fileIndex: number): PendingChange | undefined => {
+    (varKey: EnvKey, fileIndex: FileIndex): PendingChange | undefined => {
       const key = pendingKey(varKey, fileIndex);
       return pending.get(key);
     },

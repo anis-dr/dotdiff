@@ -44,4 +44,3 @@ describe("getVariableStatus", () => {
     expect(getVariableStatus(["", "value"])).toBe("different");
   });
 });
-

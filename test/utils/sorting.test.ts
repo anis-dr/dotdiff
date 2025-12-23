@@ -37,4 +37,3 @@ describe("sortKeys", () => {
     expect(sortKeys(["KEY_1", "KEY_10", "KEY_2"])).toEqual(["KEY_1", "KEY_10", "KEY_2"]);
   });
 });
-

@@ -8,61 +8,57 @@
 import { Registry } from "@effect-atom/atom-react";
 import { describe, expect, test } from "bun:test";
 import {
-  appModeAtom,
-  clipboardAtom,
-  colWidthsAtom,
-  conflictsAtom,
-  editModeAtom,
-  filesAtom,
-  messageAtom,
-  pendingAtom,
-  pendingKey,
-  selectionAtom,
-} from "../../src/state/appState.js";
-import {
   addChangesOp,
+  appModeAtom,
   clearChangesOp,
-  cycleColumnOp,
-  moveDownOp,
-  moveLeftOp,
-  moveRightOp,
-  moveUpOp,
-  removeChangeOp,
-  removeChangesForKeyOp,
-  setClipboardOp,
-  setColWidthsOp,
-  setFilesOp,
-  setMessageOp,
-  setSelectionOp,
-  undoLastOp,
-  updateFileFromDiskOp,
-  upsertChangeOp,
-} from "../../src/state/atomicOps.js";
-import {
+  clipboardAtom,
   closeModalOp,
   closeSearchOp,
+  colWidthsAtom,
+  conflictsAtom,
+  cycleColumnOp,
+  editModeAtom,
   enterAddModeOp,
   enterEditModeOp,
   enterSearchModeOp,
   exitEditModeOp,
+  filesAtom,
+  messageAtom,
+  moveDownOp,
+  moveLeftOp,
+  moveRightOp,
+  moveUpOp,
   openModalOp,
+  pendingAtom,
+  pendingKey,
+  removeChangeOp,
+  removeChangesForKeyOp,
+  selectionAtom,
+  setClipboardOp,
+  setColWidthsOp,
+  setFilesOp,
+  setMessageOp,
   setSearchQueryOp,
+  setSelectionOp,
+  undoLastOp,
   updateEditInputOp,
-} from "../../src/state/keyboardDispatch.js";
-import type { EnvFile, PendingChange } from "../../src/types.js";
-import { FilePath } from "../../src/types.js";
+  updateFileFromDiskOp,
+  upsertChangeOp,
+} from "../../src/state/index.js";
+import { Clipboard, EnvFile, EnvKey, FileIndex, FilePath, PendingChange } from "../../src/types.js";
 
 // Helper to create a mock EnvFile
-const createFile = (path: string, vars: Record<string, string>): EnvFile => ({
-  path: FilePath.make(path),
-  filename: path.split("/").pop() ?? path,
-  variables: new Map(Object.entries(vars)),
-});
+const createFile = (path: string, vars: Record<string, string>) =>
+  EnvFile.make({
+    path: FilePath.make(path),
+    filename: path.split("/").pop() ?? path,
+    variables: new Map(Object.entries(vars)),
+  });
 
 describe("pendingKey", () => {
   test("creates correct key format", () => {
-    expect(pendingKey("MY_VAR", 0)).toBe("MY_VAR:0");
-    expect(pendingKey("API_KEY", 2)).toBe("API_KEY:2");
+    expect(pendingKey(EnvKey.make("MY_VAR"), FileIndex.make(0))).toBe("MY_VAR:0");
+    expect(pendingKey(EnvKey.make("API_KEY"), FileIndex.make(2))).toBe("API_KEY:2");
   });
 });
 
@@ -80,12 +76,12 @@ describe("setFilesOp", () => {
 describe("upsertChangeOp", () => {
   test("adds new change", () => {
     const registry = Registry.make();
-    const change: PendingChange = {
-      key: "MY_VAR",
-      fileIndex: 0,
+    const change = PendingChange.make({
+      key: EnvKey.make("MY_VAR"),
+      fileIndex: FileIndex.make(0),
       oldValue: "old",
       newValue: "new",
-    };
+    });
 
     registry.set(upsertChangeOp, change);
 
@@ -96,8 +92,18 @@ describe("upsertChangeOp", () => {
 
   test("updates existing change", () => {
     const registry = Registry.make();
-    const change1: PendingChange = { key: "MY_VAR", fileIndex: 0, oldValue: "old", newValue: "new1" };
-    const change2: PendingChange = { key: "MY_VAR", fileIndex: 0, oldValue: "old", newValue: "new2" };
+    const change1 = PendingChange.make({
+      key: EnvKey.make("MY_VAR"),
+      fileIndex: FileIndex.make(0),
+      oldValue: "old",
+      newValue: "new1",
+    });
+    const change2 = PendingChange.make({
+      key: EnvKey.make("MY_VAR"),
+      fileIndex: FileIndex.make(0),
+      oldValue: "old",
+      newValue: "new2",
+    });
 
     registry.set(upsertChangeOp, change1);
     registry.set(upsertChangeOp, change2);
@@ -111,10 +117,15 @@ describe("upsertChangeOp", () => {
 describe("removeChangeOp", () => {
   test("removes existing change", () => {
     const registry = Registry.make();
-    const change: PendingChange = { key: "MY_VAR", fileIndex: 0, oldValue: "old", newValue: "new" };
+    const change = PendingChange.make({
+      key: EnvKey.make("MY_VAR"),
+      fileIndex: FileIndex.make(0),
+      oldValue: "old",
+      newValue: "new",
+    });
 
     registry.set(upsertChangeOp, change);
-    registry.set(removeChangeOp, { varKey: "MY_VAR", fileIndex: 0 });
+    registry.set(removeChangeOp, { varKey: EnvKey.make("MY_VAR"), fileIndex: FileIndex.make(0) });
 
     expect(registry.get(pendingAtom).size).toBe(0);
   });
@@ -122,21 +133,29 @@ describe("removeChangeOp", () => {
   test("no-op for non-existent change", () => {
     const registry = Registry.make();
 
-    registry.set(removeChangeOp, { varKey: "NONEXISTENT", fileIndex: 0 });
+    registry.set(removeChangeOp, { varKey: EnvKey.make("NONEXISTENT"), fileIndex: FileIndex.make(0) });
 
     expect(registry.get(pendingAtom).size).toBe(0);
   });
 
   test("also clears conflict", () => {
     const registry = Registry.make();
-    const pending = new Map<string, PendingChange>([
-      ["MY_VAR:0", { key: "MY_VAR", fileIndex: 0, oldValue: "old", newValue: "new" }],
+    const pending = new Map([
+      [
+        "MY_VAR:0",
+        PendingChange.make({
+          key: EnvKey.make("MY_VAR"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "old",
+          newValue: "new",
+        }),
+      ],
     ]);
     const conflicts = new Set(["MY_VAR:0"]);
 
     registry.set(pendingAtom, pending);
     registry.set(conflictsAtom, conflicts);
-    registry.set(removeChangeOp, { varKey: "MY_VAR", fileIndex: 0 });
+    registry.set(removeChangeOp, { varKey: EnvKey.make("MY_VAR"), fileIndex: FileIndex.make(0) });
 
     expect(registry.get(pendingAtom).size).toBe(0);
     expect(registry.get(conflictsAtom).size).toBe(0);
@@ -146,14 +165,23 @@ describe("removeChangeOp", () => {
 describe("removeChangesForKeyOp", () => {
   test("removes all changes for key", () => {
     const registry = Registry.make();
-    const pending = new Map<string, PendingChange>([
-      ["MY_VAR:0", { key: "MY_VAR", fileIndex: 0, oldValue: "a", newValue: "b" }],
-      ["MY_VAR:1", { key: "MY_VAR", fileIndex: 1, oldValue: "c", newValue: "d" }],
-      ["OTHER:0", { key: "OTHER", fileIndex: 0, oldValue: "e", newValue: "f" }],
+    const pending = new Map([
+      [
+        "MY_VAR:0",
+        PendingChange.make({ key: EnvKey.make("MY_VAR"), fileIndex: FileIndex.make(0), oldValue: "a", newValue: "b" }),
+      ],
+      [
+        "MY_VAR:1",
+        PendingChange.make({ key: EnvKey.make("MY_VAR"), fileIndex: FileIndex.make(1), oldValue: "c", newValue: "d" }),
+      ],
+      [
+        "OTHER:0",
+        PendingChange.make({ key: EnvKey.make("OTHER"), fileIndex: FileIndex.make(0), oldValue: "e", newValue: "f" }),
+      ],
     ]);
 
     registry.set(pendingAtom, pending);
-    registry.set(removeChangesForKeyOp, { varKey: "MY_VAR" });
+    registry.set(removeChangesForKeyOp, { varKey: EnvKey.make("MY_VAR") });
 
     const result = registry.get(pendingAtom);
     expect(result.size).toBe(1);
@@ -162,13 +190,19 @@ describe("removeChangesForKeyOp", () => {
 
   test("respects excludeFileIndex", () => {
     const registry = Registry.make();
-    const pending = new Map<string, PendingChange>([
-      ["MY_VAR:0", { key: "MY_VAR", fileIndex: 0, oldValue: "a", newValue: "b" }],
-      ["MY_VAR:1", { key: "MY_VAR", fileIndex: 1, oldValue: "c", newValue: "d" }],
+    const pending = new Map([
+      [
+        "MY_VAR:0",
+        PendingChange.make({ key: EnvKey.make("MY_VAR"), fileIndex: FileIndex.make(0), oldValue: "a", newValue: "b" }),
+      ],
+      [
+        "MY_VAR:1",
+        PendingChange.make({ key: EnvKey.make("MY_VAR"), fileIndex: FileIndex.make(1), oldValue: "c", newValue: "d" }),
+      ],
     ]);
 
     registry.set(pendingAtom, pending);
-    registry.set(removeChangesForKeyOp, { varKey: "MY_VAR", excludeFileIndex: 1 });
+    registry.set(removeChangesForKeyOp, { varKey: EnvKey.make("MY_VAR"), excludeFileIndex: FileIndex.make(1) });
 
     const result = registry.get(pendingAtom);
     expect(result.size).toBe(1);
@@ -179,9 +213,15 @@ describe("removeChangesForKeyOp", () => {
 describe("clearChangesOp", () => {
   test("clears all pending and conflicts", () => {
     const registry = Registry.make();
-    const pending = new Map<string, PendingChange>([
-      ["A:0", { key: "A", fileIndex: 0, oldValue: "a", newValue: "b" }],
-      ["B:1", { key: "B", fileIndex: 1, oldValue: "c", newValue: "d" }],
+    const pending = new Map([
+      [
+        "A:0",
+        PendingChange.make({ key: EnvKey.make("A"), fileIndex: FileIndex.make(0), oldValue: "a", newValue: "b" }),
+      ],
+      [
+        "B:1",
+        PendingChange.make({ key: EnvKey.make("B"), fileIndex: FileIndex.make(1), oldValue: "c", newValue: "d" }),
+      ],
     ]);
     const conflicts = new Set(["A:0"]);
 
@@ -198,8 +238,14 @@ describe("undoLastOp", () => {
   test("removes last change (LIFO)", () => {
     const registry = Registry.make();
 
-    registry.set(upsertChangeOp, { key: "FIRST", fileIndex: 0, oldValue: "a", newValue: "b" });
-    registry.set(upsertChangeOp, { key: "SECOND", fileIndex: 0, oldValue: "c", newValue: "d" });
+    registry.set(
+      upsertChangeOp,
+      PendingChange.make({ key: EnvKey.make("FIRST"), fileIndex: FileIndex.make(0), oldValue: "a", newValue: "b" }),
+    );
+    registry.set(
+      upsertChangeOp,
+      PendingChange.make({ key: EnvKey.make("SECOND"), fileIndex: FileIndex.make(0), oldValue: "c", newValue: "d" }),
+    );
     registry.set(undoLastOp, undefined);
 
     const pending = registry.get(pendingAtom);
@@ -220,9 +266,9 @@ describe("undoLastOp", () => {
 describe("addChangesOp", () => {
   test("adds multiple changes at once", () => {
     const registry = Registry.make();
-    const changes: Array<PendingChange> = [
-      { key: "A", fileIndex: 0, oldValue: "a", newValue: "b" },
-      { key: "B", fileIndex: 1, oldValue: "c", newValue: "d" },
+    const changes = [
+      PendingChange.make({ key: EnvKey.make("A"), fileIndex: FileIndex.make(0), oldValue: "a", newValue: "b" }),
+      PendingChange.make({ key: EnvKey.make("B"), fileIndex: FileIndex.make(1), oldValue: "c", newValue: "d" }),
     ];
 
     registry.set(addChangesOp, changes);
@@ -423,9 +469,9 @@ describe("setClipboardOp", () => {
   test("stores key/value", () => {
     const registry = Registry.make();
 
-    registry.set(setClipboardOp, { key: "MY_KEY", value: "my_value" });
+    registry.set(setClipboardOp, Clipboard.make({ key: EnvKey.make("MY_KEY"), value: "my_value" }));
 
-    expect(registry.get(clipboardAtom)).toEqual({ key: "MY_KEY", value: "my_value" });
+    expect(registry.get(clipboardAtom)).toEqual(Clipboard.make({ key: EnvKey.make("MY_KEY"), value: "my_value" }));
   });
 });
 
@@ -512,7 +558,7 @@ describe("updateFileFromDiskOp", () => {
     registry.set(filesAtom, files);
 
     const newVars = new Map([["NEW_KEY", "new_value"]]);
-    registry.set(updateFileFromDiskOp, { fileIndex: 0, newVariables: newVars });
+    registry.set(updateFileFromDiskOp, { fileIndex: FileIndex.make(0), newVariables: newVars });
 
     const updatedFiles = registry.get(filesAtom);
     expect(updatedFiles[0]?.variables.get("NEW_KEY")).toBe("new_value");
@@ -522,15 +568,23 @@ describe("updateFileFromDiskOp", () => {
   test("detects conflicts when disk value differs from oldValue", () => {
     const registry = Registry.make();
     const files = [createFile(".env", { MY_VAR: "original" })];
-    const pending = new Map<string, PendingChange>([
-      ["MY_VAR:0", { key: "MY_VAR", fileIndex: 0, oldValue: "original", newValue: "pending" }],
+    const pending = new Map([
+      [
+        "MY_VAR:0",
+        PendingChange.make({
+          key: EnvKey.make("MY_VAR"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "original",
+          newValue: "pending",
+        }),
+      ],
     ]);
     registry.set(filesAtom, files);
     registry.set(pendingAtom, pending);
 
     // Disk changes to different value
     const newVars = new Map([["MY_VAR", "changed_on_disk"]]);
-    registry.set(updateFileFromDiskOp, { fileIndex: 0, newVariables: newVars });
+    registry.set(updateFileFromDiskOp, { fileIndex: FileIndex.make(0), newVariables: newVars });
 
     expect(registry.get(conflictsAtom).has("MY_VAR:0")).toBe(true);
   });
@@ -538,8 +592,16 @@ describe("updateFileFromDiskOp", () => {
   test("clears conflict when disk value matches oldValue again", () => {
     const registry = Registry.make();
     const files = [createFile(".env", { MY_VAR: "changed" })];
-    const pending = new Map<string, PendingChange>([
-      ["MY_VAR:0", { key: "MY_VAR", fileIndex: 0, oldValue: "original", newValue: "pending" }],
+    const pending = new Map([
+      [
+        "MY_VAR:0",
+        PendingChange.make({
+          key: EnvKey.make("MY_VAR"),
+          fileIndex: FileIndex.make(0),
+          oldValue: "original",
+          newValue: "pending",
+        }),
+      ],
     ]);
     const conflicts = new Set(["MY_VAR:0"]);
     registry.set(filesAtom, files);
@@ -548,7 +610,7 @@ describe("updateFileFromDiskOp", () => {
 
     // Disk reverts to original
     const newVars = new Map([["MY_VAR", "original"]]);
-    registry.set(updateFileFromDiskOp, { fileIndex: 0, newVariables: newVars });
+    registry.set(updateFileFromDiskOp, { fileIndex: FileIndex.make(0), newVariables: newVars });
 
     expect(registry.get(conflictsAtom).has("MY_VAR:0")).toBe(false);
   });
@@ -556,7 +618,7 @@ describe("updateFileFromDiskOp", () => {
   test("no-op for invalid file index", () => {
     const registry = Registry.make();
 
-    registry.set(updateFileFromDiskOp, { fileIndex: 99, newVariables: new Map() });
+    registry.set(updateFileFromDiskOp, { fileIndex: FileIndex.make(99), newVariables: new Map() });
 
     // Should not throw, files should remain empty
     expect(registry.get(filesAtom)).toEqual([]);

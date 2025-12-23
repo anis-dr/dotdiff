@@ -1,0 +1,77 @@
+---
+globs: *.ts,*.tsx
+alwaysApply: false
+---
+# Effect Style Guide
+
+## Generators First
+- Use `Effect.gen` for sequencing, `yield*` to unwrap effects
+- `Effect.fn("Name")` for traced functions—enables call-site stack traces
+
+```typescript
+const parseFile = Effect.fn("EnvParser.parseFile")(function*(filePath: string) {
+  const content = yield* fs.readFileString(filePath);
+  return EnvFile.make({ ... });
+});
+```
+
+## Services & Layers
+- `Context.Tag` defines service contract, `Layer.effect` implements
+- Service id format: `@dotdiff/ServiceName`
+- Layer naming: `EnvParserLive`, `EnvWriterLive`
+- Yield dependencies inside `Layer.effect`, return `Service.of({ ... })`
+- Provide layers once at entry point via `Layer.mergeAll` + `Layer.provideMerge`
+
+```typescript
+class EnvParser extends Context.Tag("@dotdiff/EnvParser")<EnvParser, {
+  readonly parseFile: (path: string) => Effect.Effect<EnvFile, FileReadError>;
+}>() {}
+
+export const EnvParserLive = Layer.effect(EnvParser, Effect.gen(function*() {
+  const fs = yield* FileSystem.FileSystem;
+  const parseFile = Effect.fn("EnvParser.parseFile")(function*(p) { ... });
+  return EnvParser.of({ parseFile });
+}));
+```
+
+## Error Handling
+- `Schema.TaggedError` for domain errors—yieldable, no `Effect.fail()` needed
+- Wrap unknown causes with `Schema.Defect`
+- Union errors: `Schema.Union(ErrorA, ErrorB)`
+- Recover via `Effect.catchTag`, `Effect.catchTags`, `Effect.catchAll`
+- Unrecoverable → `Effect.orDie` or `Effect.die`
+
+```typescript
+class FileReadError extends Schema.TaggedError<FileReadError>()("FileReadError", {
+  path: Schema.String,
+  cause: Schema.Defect,
+}) {}
+```
+
+## Data Modeling
+- `Schema.Class` for domain objects
+- Branded types via `Schema.brand()`: `EnvKey`, `FileIndex`, `FilePath`
+- `Data.TaggedEnum` for state machines (pattern match via `$match`, guard via `$is`)
+- Never use `as` to cast types to branded types
+- Always use `make` to create branded types
+```typescript
+const fileIndex = FileIndex.make(fileIndex);
+```
+
+## Concurrency
+- `Effect.all(effects, { concurrency: "unbounded" })` for parallel ops
+- Default sequential when order matters
+
+## Entry Point
+- `BunRuntime.runMain` for prod
+- `Atom.runtime(AppServicesLive)` for effect-atom integration
+
+## Imports
+- Named: `import { Effect, Layer, Schema } from "effect"`
+- Platform: `import { FileSystem } from "@effect/platform"`
+- Bun: `import { BunContext } from "@effect/platform-bun"`
+
+## Avoid
+- `flow`, point-free style—be explicit for stack traces
+- Raw Promise mixing—use `Effect.promise`
+- Nested pipes—prefer generators

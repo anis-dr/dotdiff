@@ -4,40 +4,40 @@
  * Uses AppMode.$match for clean mode-based dispatch.
  * Actions are still passed as callbacks to allow async operations (save, quit).
  */
-import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
+import { RegistryContext, useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useKeyboard } from "@opentui/react";
-import { appModeAtom, pendingListAtom } from "../state/appState.js";
+import { useContext } from "react";
 import {
+  appModeAtom,
+  cancelEditOp,
+  closeModalOp,
+  closeSearchOp,
   copyActionOp,
   cycleColumnOp,
   deleteAllActionOp,
   deleteVariableActionOp,
+  enterAddModeOp,
+  enterEditModeActionOp,
+  enterSearchModeOp,
   moveDownOp,
   moveLeftOp,
   moveRightOp,
   moveUpOp,
   nextDiffOp,
   nextMatchOp,
+  openModalOp,
   pasteActionOp,
   pasteAllActionOp,
+  pendingAtom,
   prevDiffOp,
   prevMatchOp,
   revertActionOp,
-  setMessageOp,
+  saveKeyPressedOp,
   syncToLeftActionOp,
   syncToRightActionOp,
   undoActionOp,
   undoAllActionOp,
-} from "../state/atomicOps.js";
-import {
-  cancelEditOp,
-  closeModalOp,
-  closeSearchOp,
-  enterAddModeOp,
-  enterEditModeActionOp,
-  enterSearchModeOp,
-  openModalOp,
-} from "../state/keyboardDispatch.js";
+} from "../state/index.js";
 import { AppMode } from "../types.js";
 
 export interface KeyBindingCallbacks {
@@ -50,7 +50,7 @@ export interface KeyBindingCallbacks {
 export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
   const { onConfirmSave, onQuit } = callbacks;
   const mode = useAtomValue(appModeAtom);
-  const pendingList = useAtomValue(pendingListAtom);
+  const registry = useContext(RegistryContext);
 
   // Mode transitions
   const cancelEdit = useAtomSet(cancelEditOp);
@@ -60,7 +60,9 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
   const enterEditMode = useAtomSet(enterEditModeActionOp);
   const openSearch = useAtomSet(enterSearchModeOp);
   const openModal = useAtomSet(openModalOp);
-  const showMessage = useAtomSet(setMessageOp);
+
+  // Key press handlers with encapsulated pending-check logic
+  const handleSaveKey = useAtomSet(saveKeyPressedOp);
 
   // Navigation
   const moveUp = useAtomSet(moveUpOp);
@@ -175,11 +177,7 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
 
           // Save
           case "s":
-            if (pendingList.length === 0) {
-              showMessage("⚠ No changes to save");
-            } else {
-              openModal("save");
-            }
+            handleSaveKey();
             break;
 
           // Edit mode
@@ -200,14 +198,16 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
             }
             break;
 
-          // Quit
-          case "q":
-            if (pendingList.length > 0) {
+          // Quit - check pending via registry to avoid subscription
+          case "q": {
+            const hasPending = registry.get(pendingAtom).size > 0;
+            if (hasPending) {
               openModal("quit");
             } else {
               onQuit();
             }
             break;
+          }
 
           // Search
           case "/":

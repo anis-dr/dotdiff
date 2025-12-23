@@ -4,11 +4,7 @@
  * Thin wrapper around atomic operations in atomicOps.ts
  */
 import { useAtomSet } from "@effect-atom/atom-react";
-import {
-  revertActionOp,
-  undoActionOp,
-  undoAllActionOp,
-} from "../state/atomicOps.js";
+import { revertActionOp, undoActionOp, undoAllActionOp } from "../state/index.js";
 
 export interface UseUndoActions {
   handleRevert: () => void;

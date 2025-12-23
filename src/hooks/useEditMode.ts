@@ -4,18 +4,18 @@
  * Uses atomic operations from keyboardDispatch.ts for mode transitions.
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
-import { editModeAtom } from "../state/appState.js";
 import {
   cancelEditOp,
+  editModeAtom,
   enterAddModeOp,
   enterEditModeOp,
   exitEditModeOp,
   updateEditInputOp,
-} from "../state/keyboardDispatch.js";
+} from "../state/index.js";
 import type { AppMode } from "../types.js";
 
 /** Edit mode state (null if not in edit mode) */
-export type EditModeState = Extract<AppMode, { readonly _tag: "Edit" }> | null;
+export type EditModeState = Extract<AppMode, { readonly _tag: "Edit"; }> | null;
 
 export interface UseEditMode {
   editMode: EditModeState;
@@ -46,7 +46,7 @@ export function useEditMode(): UseEditMode {
 
 /** Hook that also provides cancel with message */
 export function useEditActions() {
-  const { editMode, enterEditMode, enterAddMode, updateEditInput, exitEditMode } = useEditMode();
+  const { editMode, enterAddMode, enterEditMode, exitEditMode, updateEditInput } = useEditMode();
   const cancelEdit = useAtomSet(cancelEditOp);
 
   return {

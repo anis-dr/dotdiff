@@ -5,9 +5,8 @@
  */
 import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useCallback } from "react";
-import { appModeAtom, modalTypeAtom } from "../state/appState.js";
-import { closeModalOp, openModalOp } from "../state/keyboardDispatch.js";
-import type { AppMode, ModalType } from "../types.js";
+import { appModeAtom, closeModalOp, modalTypeAtom, openModalOp } from "../state/index.js";
+import type { ModalType } from "../types.js";
 
 /** Modal state compatible with existing code */
 export interface ModalState {

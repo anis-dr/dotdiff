@@ -3,11 +3,11 @@
  */
 import { describe, expect, test } from "bun:test";
 import {
-  parseEnvLines,
-  buildAssignmentLine,
-  patchEnvContent,
-  parseEnvToMap,
   applyEnvChanges,
+  buildAssignmentLine,
+  parseEnvLines,
+  parseEnvToMap,
+  patchEnvContent,
 } from "../src/services/envFormat.js";
 
 describe("parseEnvLines", () => {
@@ -91,15 +91,15 @@ describe("buildAssignmentLine", () => {
   });
 
   test("quotes values with spaces", () => {
-    expect(buildAssignmentLine("KEY", "hello world")).toBe('KEY="hello world"');
+    expect(buildAssignmentLine("KEY", "hello world")).toBe("KEY=\"hello world\"");
   });
 
   test("quotes empty values", () => {
-    expect(buildAssignmentLine("KEY", "")).toBe('KEY=""');
+    expect(buildAssignmentLine("KEY", "")).toBe("KEY=\"\"");
   });
 
   test("escapes quotes in values", () => {
-    expect(buildAssignmentLine("KEY", 'say "hello"')).toBe('KEY="say \\"hello\\""');
+    expect(buildAssignmentLine("KEY", "say \"hello\"")).toBe("KEY=\"say \\\"hello\\\"\"");
   });
 });
 
@@ -356,7 +356,7 @@ PASSWORD="p@ss!word#123"
     expect(lines[0]).toMatchObject({
       type: "assignment",
       key: "KEY",
-      value: "value",  // # starts inline comment for unquoted
+      value: "value", // # starts inline comment for unquoted
     });
   });
 
@@ -465,20 +465,19 @@ A1B2C3=test
 
 describe("buildAssignmentLine edge cases", () => {
   test("quotes values with hash character", () => {
-    expect(buildAssignmentLine("KEY", "value#comment")).toBe('KEY="value#comment"');
+    expect(buildAssignmentLine("KEY", "value#comment")).toBe("KEY=\"value#comment\"");
   });
 
   test("quotes values with backslash", () => {
-    expect(buildAssignmentLine("KEY", "path\\to\\file")).toBe('KEY="path\\\\to\\\\file"');
+    expect(buildAssignmentLine("KEY", "path\\to\\file")).toBe("KEY=\"path\\\\to\\\\file\"");
   });
 
   test("handles single quotes in values", () => {
-    expect(buildAssignmentLine("KEY", "it's working")).toBe('KEY="it\'s working"');
+    expect(buildAssignmentLine("KEY", "it's working")).toBe("KEY=\"it's working\"");
   });
 
   test("handles newlines in value by quoting", () => {
     // Newlines are treated as whitespace requiring quotes
-    expect(buildAssignmentLine("KEY", "line1\nline2")).toBe('KEY="line1\nline2"');
+    expect(buildAssignmentLine("KEY", "line1\nline2")).toBe("KEY=\"line1\nline2\"");
   });
 });
-

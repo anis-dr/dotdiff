@@ -1,15 +1,14 @@
 /**
  * Integration tests for EnvParser service
  */
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { Effect, Layer } from "effect";
-import { FileSystem } from "@effect/platform";
 import { BunFileSystem } from "@effect/platform-bun";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { Effect, Layer } from "effect";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { EnvParser, EnvParserLive } from "../../src/services/EnvParser.js";
 import { FilePath } from "../../src/types.js";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as os from "node:os";
 
 // Test layer combining EnvParser with BunFileSystem
 const TestLayer = Layer.provide(EnvParserLive, BunFileSystem.layer);
@@ -43,14 +42,14 @@ describe("EnvParser", () => {
         ".env",
         `API_KEY=secret123
 DATABASE_URL=postgres://localhost/db
-`
+`,
       );
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFile(filePath);
-        })
+        }),
       );
 
       expect(result.path).toBe(FilePath.make(filePath));
@@ -63,10 +62,10 @@ DATABASE_URL=postgres://localhost/db
       const filePath = writeTempFile(".env.empty", "");
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFile(filePath);
-        })
+        }),
       );
 
       expect(result.variables.size).toBe(0);
@@ -77,14 +76,14 @@ DATABASE_URL=postgres://localhost/db
         ".env.comments",
         `# This is a comment
 # Another comment
-`
+`,
       );
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFile(filePath);
-        })
+        }),
       );
 
       expect(result.variables.size).toBe(0);
@@ -99,14 +98,14 @@ DB_PORT=5432
 
 # API config
 API_KEY=secret
-`
+`,
       );
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFile(filePath);
-        })
+        }),
       );
 
       expect(result.variables.size).toBe(3);
@@ -120,11 +119,11 @@ API_KEY=secret
 
       await expect(
         runEffect(
-          Effect.gen(function* () {
+          Effect.gen(function*() {
             const parser = yield* EnvParser;
             return yield* parser.parseFile(nonExistentPath);
-          })
-        )
+          }),
+        ),
       ).rejects.toThrow();
     });
 
@@ -133,14 +132,14 @@ API_KEY=secret
         ".env.quoted",
         `DOUBLE="hello world"
 SINGLE='another value'
-`
+`,
       );
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFile(filePath);
-        })
+        }),
       );
 
       expect(result.variables.get("DOUBLE")).toBe("hello world");
@@ -152,14 +151,14 @@ SINGLE='another value'
         ".env.export",
         `export API_KEY=secret123
 export DB_URL=postgres://localhost
-`
+`,
       );
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFile(filePath);
-        })
+        }),
       );
 
       expect(result.variables.get("API_KEY")).toBe("secret123");
@@ -173,10 +172,10 @@ export DB_URL=postgres://localhost
       const file2 = writeTempFile(".env.prod", "PROD_VAR=prod_value\n");
 
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFiles([file1, file2]);
-        })
+        }),
       );
 
       expect(result).toHaveLength(2);
@@ -186,10 +185,10 @@ export DB_URL=postgres://localhost
 
     test("handles empty files array", async () => {
       const result = await runEffect(
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           const parser = yield* EnvParser;
           return yield* parser.parseFiles([]);
-        })
+        }),
       );
 
       expect(result).toEqual([]);
@@ -201,13 +200,12 @@ export DB_URL=postgres://localhost
 
       await expect(
         runEffect(
-          Effect.gen(function* () {
+          Effect.gen(function*() {
             const parser = yield* EnvParser;
             return yield* parser.parseFiles([validFile, invalidFile]);
-          })
-        )
+          }),
+        ),
       ).rejects.toThrow();
     });
   });
 });
-
