@@ -1,17 +1,61 @@
 {
   "name": "dotdiff",
+  "version": "0.0.0",
+  "description": "A TUI tool to compare and sync .env files",
   "module": "src/index.tsx",
   "type": "module",
-  "private": true,
+  "bin": {
+    "dotdiff": "bin/run.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "keywords": [
+    "env",
+    "dotenv",
+    "diff",
+    "compare",
+    "sync",
+    "cli",
+    "tui",
+    "environment",
+    "variables"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/dotdiff.git"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/dotdiff#readme",
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/dotdiff/issues"
+  },
+  "license": "MIT",
+  "author": "",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "prepare": "effect-language-service patch",
     "dev": "bun run src/index.tsx",
     "build": "bun scripts/build.ts",
+    "build:all": "bun scripts/build-all.ts",
+    "build:packages": "bun scripts/build-packages.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix"
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+    "test": "bun test",
+    "version": "bun scripts/sync-versions.ts",
+    "release": "bun scripts/release.ts"
+  },
+  "optionalDependencies": {
+    "@dotdiff/darwin-arm64": "0.0.0",
+    "@dotdiff/darwin-x64": "0.0.0",
+    "@dotdiff/linux-arm64": "0.0.0",
+    "@dotdiff/linux-x64": "0.0.0",
+    "@dotdiff/win32-x64": "0.0.0"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.1",
     "@effect/eslint-plugin": "^0.3.2",
     "@effect/language-service": "^0.62.4",
     "@eslint/compat": "^2.0.0",

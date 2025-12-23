@@ -4,8 +4,12 @@ node_modules
 # output
 out
 dist
-bin
+packages
 *.tgz
+
+# compiled binaries (keep bin/run.js)
+bin/dotdiff
+bin/dotdiff.exe
 
 # code coverage
 coverage

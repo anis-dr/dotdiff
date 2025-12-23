@@ -19,40 +19,36 @@ A TUI tool to compare and sync `.env` files side-by-side. Built with Effect, @ef
 ## Install
 
 ```bash
-bun install
+# npm
+npm install -g dotdiff
+
+# pnpm
+pnpm add -g dotdiff
+
+# bun
+bun add -g dotdiff
 ```
+
+> **Note**: dotdiff installs a native binary for your platform automatically. Supported: macOS (Intel/Apple Silicon), Linux (x64/arm64), Windows (x64).
 
 ## Usage
 
 Compare two or more env files:
 
 ```bash
-# Development
-bun run dev .env.local .env.prod
-
-# Or with the built binary
-./bin/dotdiff .env.local .env.prod
+dotdiff .env.local .env.prod
 ```
 
 Compare multiple environments:
 
 ```bash
-bun run dev .env.dev .env.staging .env.prod
+dotdiff .env.dev .env.staging .env.prod
 ```
 
 Get help:
 
 ```bash
-bun run dev --help
-```
-
-### Building
-
-Compile to a standalone binary:
-
-```bash
-bun run build
-./bin/dotdiff .env.local .env.prod
+dotdiff --help
 ```
 
 ## Keybindings
@@ -124,6 +120,9 @@ Pending changes are highlighted until saved.
 ## Development
 
 ```bash
+# Install dependencies
+bun install
+
 # Run in dev mode
 bun run dev .env.local .env.prod
 
@@ -135,6 +134,30 @@ bun run lint
 
 # Run tests
 bun test
+
+# Build for current platform
+bun run build
+
+# Build for all platforms
+bun run build:all
+
+# Generate platform packages
+bun run build:packages
+```
+
+### Releasing
+
+This project uses [changesets](https://github.com/changesets/changesets) for versioning.
+
+```bash
+# Add a changeset (when you make a notable change)
+bunx changeset
+
+# Version bump (CI does this automatically)
+bunx changeset version
+
+# Publish (CI does this automatically on merge to main)
+bun run release
 ```
 
 ## Architecture
