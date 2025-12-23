@@ -25,5 +25,8 @@
     "javascriptreact",
     "typescript",
     "typescriptreact"
+  ],
+  "cSpell.words": [
+    "Effectful"
   ]
 }

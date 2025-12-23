@@ -29,6 +29,7 @@ import {
   rowCountAtom,
   selectionAtom,
 } from "./appState.js";
+import { type SaveResult, SaveResult as SR } from "./runtime.js";
 
 // =============================================================================
 // Pending Changes Operations
@@ -808,4 +809,25 @@ export const undoAllActionOp = Atom.fnSync((_: void, get) => {
   get.set(pendingAtom, new Map());
   get.set(conflictsAtom, new Set());
   get.set(messageAtom, "↩ All changes undone");
+});
+
+// -----------------------------------------------------------------------------
+// Save Actions
+// -----------------------------------------------------------------------------
+/**
+ * Handle save completion - updates state based on save result
+ */
+export const onSaveCompleteOp = Atom.fnSync((result: SaveResult, get) => {
+  SR.$match(result, {
+    Success: ({ files }) => {
+      get.set(filesAtom, files);
+      get.set(pendingAtom, new Map());
+      get.set(conflictsAtom, new Set());
+      get.set(appModeAtom, AppMode.Normal());
+      get.set(messageAtom, "💾 Saved!");
+    },
+    Failure: ({ message }) => {
+      get.set(messageAtom, `⚠ Save failed: ${message}`);
+    },
+  });
 });

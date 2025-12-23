@@ -12,7 +12,7 @@ export type { UsePendingChanges } from "./usePendingChanges.js";
 export { useSearch } from "./useSearch.js";
 export type { UseSearch } from "./useSearch.js";
 
-export { useModal, useAppMode } from "./useModal.js";
+export { useAppMode, useModal } from "./useModal.js";
 export type { UseModal } from "./useModal.js";
 
 export { useEditMode } from "./useEditMode.js";
@@ -45,6 +45,3 @@ export type { UseDeleteActions } from "./useDeleteActions.js";
 
 export { useUndoActions } from "./useUndoActions.js";
 export type { UseUndoActions } from "./useUndoActions.js";
-
-// File watcher hook for PubSub integration
-export { useFileWatcher } from "./useFileWatcher.js";

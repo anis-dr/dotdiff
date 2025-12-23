@@ -6,21 +6,12 @@
  */
 import { Atom } from "@effect-atom/atom-react";
 import { BunContext } from "@effect/platform-bun";
-import { Effect, Layer } from "effect";
-import {
-  EnvDifferLive,
-  EnvParserLive,
-  EnvWriter,
-  EnvWriterLive,
-  type FileChangeEvent,
-  FileWatcherLive,
-} from "../services/index.js";
+import { Data, Effect, Layer } from "effect";
+import { EnvDifferLive, EnvParserLive, EnvWriter, EnvWriterLive, FileWatcherLive } from "../services/index.js";
 import type { EnvFile, PendingChange } from "../types.js";
 
 /**
  * Combined layer providing all application services.
- * Note: FileChangePubSub is NOT included here - we use a simple atom instead
- * to avoid the issue of separate layer instances between CLI and atom runtime.
  */
 const AppServicesLive = Layer.mergeAll(
   EnvParserLive,
@@ -43,29 +34,39 @@ export interface SaveChangesArgs {
 }
 
 /**
+ * Result type for save operations using Data.TaggedEnum.
+ * Enables typed error handling with pattern matching via SaveResult.$match.
+ */
+export type SaveResult = Data.TaggedEnum<{
+  Success: { readonly files: ReadonlyArray<EnvFile>; };
+  Failure: { readonly message: string; };
+}>;
+
+export const SaveResult = Data.taggedEnum<SaveResult>();
+
+/**
  * Effectful atom for saving changes to disk.
  * Uses EnvWriter service directly from the runtime.
+ * Returns a typed SaveResult for pattern matching instead of throwing.
  *
  * Usage:
- *   const saveChanges = useAtomSet(saveChangesAtom)
- *   saveChanges({ files, changes: pendingList })
+ *   const saveChanges = useAtomSet(saveChangesAtom, { mode: "promise" })
+ *   const result = await saveChanges({ files, changes: pendingList })
+ *   SaveResult.$match(result, { Success: ..., Failure: ... })
  */
 export const saveChangesAtom = appRuntime.fn(
   Effect.fnUntraced(function*(args: SaveChangesArgs) {
     const writer = yield* EnvWriter;
-    const updatedFiles = yield* writer.applyChanges(args.files, args.changes);
-    return updatedFiles;
+    const result = yield* writer.applyChanges(args.files, args.changes).pipe(
+      Effect.map((files) => SaveResult.Success({ files })),
+      Effect.catchAll((err) =>
+        Effect.succeed(SaveResult.Failure({
+          message: err instanceof Error ? err.message : String(err),
+        }))
+      ),
+    );
+    return result;
   }),
-);
-
-/**
- * Simple writable atom for file change events.
- * The CLI pushes events here directly, and React subscribes to it.
- * This bypasses the PubSub layer issue where CLI and atom runtime
- * have separate layer instances.
- */
-export const fileChangeEventAtom = Atom.make<FileChangeEvent | null>(null).pipe(
-  Atom.keepAlive,
 );
 
 /**

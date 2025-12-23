@@ -2,17 +2,19 @@
  * dotdiff CLI entry point
  * Syncs .env files with a TUI diff viewer
  *
- * Uses Effect.acquireRelease for proper renderer lifecycle management
- * and PubSub for bridging file watcher events to React.
+ * Uses Effect.acquireRelease for proper renderer lifecycle management.
+ * File watcher reads and updates state directly in Effect-land.
  */
 import { Registry, RegistryContext } from "@effect-atom/atom-react";
 import { Args, Command, HelpDoc, Span, ValidationError } from "@effect/cli";
 import { DevTools } from "@effect/experimental";
+import { FileSystem } from "@effect/platform";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Console, Deferred, Effect, Fiber, Layer, Stream } from "effect";
 import { App } from "./components/index.js";
+import { parseEnvToMap } from "./services/envFormat.js";
 import {
   EnvDiffer,
   EnvDifferLive,
@@ -22,7 +24,9 @@ import {
   FileWatcher,
   FileWatcherLive,
 } from "./services/index.js";
-import { fileChangeEventAtom } from "./state/runtime.js";
+import { filesAtom } from "./state/appState.js";
+import { setMessageOp, updateFileFromDiskOp } from "./state/atomicOps.js";
+import { findFileIndex } from "./state/fileSync.js";
 import type { EnvFile } from "./types.js";
 
 // CLI arguments: at least 2 .env file paths
@@ -153,8 +157,11 @@ const renderApp = (
   );
 
 /**
- * Start the file watcher and push events directly to the atom.
+ * Start the file watcher and handle file changes directly in Effect-land.
  * Runs as a background fiber.
+ *
+ * This reads changed files and updates state directly, eliminating the need
+ * for a React hook to bridge file events.
  *
  * Uses Effect.race with shutdown signal to ensure immediate termination,
  * bypassing any pending debounce timers in the stream.
@@ -166,6 +173,7 @@ const startFileWatcher = (
 ) =>
   Effect.gen(function*() {
     const watcher = yield* FileWatcher;
+    const fs = yield* FileSystem.FileSystem;
     const watchStream = watcher.watchFiles(filePaths);
 
     // Race the stream processing against the shutdown signal
@@ -174,9 +182,28 @@ const startFileWatcher = (
     yield* Effect.race(
       watchStream.pipe(
         Stream.runForEach((event) =>
-          Effect.sync(() => {
-            registry.set(fileChangeEventAtom, event);
-          })
+          Effect.gen(function*() {
+            // Find which file changed using current state from registry
+            const files = registry.get(filesAtom);
+            const fileIndex = findFileIndex(files, event.path);
+            if (fileIndex === -1) return;
+
+            const file = files[fileIndex];
+            if (!file) return;
+
+            // Re-read file from disk and update state
+            const content = yield* fs.readFileString(file.path);
+            const newVariables = parseEnvToMap(content);
+
+            registry.set(updateFileFromDiskOp, { fileIndex, newVariables });
+            registry.set(setMessageOp, `↻ ${file.filename} updated`);
+          }).pipe(
+            Effect.catchAll((err) =>
+              Effect.sync(() => {
+                registry.set(setMessageOp, `⚠ File read failed: ${String(err)}`);
+              })
+            ),
+          )
         ),
       ),
       Deferred.await(shutdownSignal),

@@ -8,10 +8,8 @@ import {
   useAppMode,
   useEditMode,
   useFiles,
-  useFileWatcher,
   useKeyBindings,
   useLayout,
-  useMessage,
   useModal,
   usePendingChanges,
   useSearch,
@@ -25,6 +23,7 @@ import {
   pendingListAtom,
   statsAtom,
 } from "../state/appState.js";
+import { onSaveCompleteOp } from "../state/atomicOps.js";
 import { saveChangesAtom } from "../state/runtime.js";
 import type { EnvFile } from "../types.js";
 import { AppMode, Colors } from "../types.js";
@@ -59,16 +58,13 @@ export function App({ initialFiles, onQuit }: AppProps) {
   const { search, setSearchQuery } = useSearch();
   const { closeModal } = useModal();
   useEditMode(); // Hook must be called but editMode not used directly
-  const { showMessage } = useMessage();
   const { setColWidths } = useLayout();
-  const { clearChanges } = usePendingChanges();
+  usePendingChanges(); // Hook must be called for reactivity
   const { selection } = useSelection();
-
-  // Subscribe to file watcher events via PubSub
-  useFileWatcher();
 
   // Effectful save action from the runtime - use "promise" mode to await result
   const saveChanges = useAtomSet(saveChangesAtom, { mode: "promise" });
+  const onSaveComplete = useAtomSet(onSaveCompleteOp);
 
   // Action hooks
   const { handleEditInput, handleSaveEdit } = useEditActions();
@@ -100,20 +96,11 @@ export function App({ initialFiles, onQuit }: AppProps) {
     setColWidths(colWidths);
   }, [colWidths, setColWidths]);
 
-  // Actually perform the save using the effectful saveChangesAtom
+  // Perform save using typed result pattern (no try/catch needed)
   const doSave = useCallback(async () => {
-    try {
-      // saveChanges is an Atom.fn with promise mode - returns the updated files
-      const updatedFiles = await saveChanges({ files, changes: pendingList });
-      setFiles(updatedFiles);
-      clearChanges();
-      closeModal();
-      showMessage("💾 Saved!");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showMessage(`⚠ Save failed: ${msg}`);
-    }
-  }, [files, pendingList, saveChanges, setFiles, clearChanges, closeModal, showMessage]);
+    const result = await saveChanges({ files, changes: pendingList });
+    onSaveComplete(result);
+  }, [files, pendingList, saveChanges, onSaveComplete]);
 
   // Search handlers
   const handleSearchInput = useCallback(
