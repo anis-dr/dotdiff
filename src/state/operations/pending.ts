@@ -72,28 +72,6 @@ export const clearChangesOp = Atom.fnSync((_: void, get) => {
 });
 
 /**
- * Undo the last pending change (LIFO)
- * Returns true if something was undone
- */
-export const undoLastOp = Atom.fnSync((_: void, get): boolean => {
-  const pending = get(pendingAtom);
-
-  if (pending.size === 0) {
-    return false;
-  }
-
-  // Map preserves insertion order, so we can get the last key
-  const keys = Array.from(pending.keys());
-  const lastKey = keys[keys.length - 1]!;
-
-  const newPending = new Map(pending);
-  newPending.delete(lastKey);
-  get.set(pendingAtom, newPending);
-
-  return true;
-}, { initialValue: false });
-
-/**
  * Add multiple changes at once
  */
 export const addChangesOp = Atom.fnSync(

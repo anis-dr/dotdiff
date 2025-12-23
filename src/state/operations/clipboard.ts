@@ -6,9 +6,19 @@
 import { Atom } from "@effect-atom/atom-react";
 import type { Clipboard } from "../../types.js";
 import { FileIndex } from "../../types.js";
-import { clipboardAtom, filesAtom, messageAtom, pendingAtom, pendingKey, selectionAtom } from "../atoms/base.js";
+import {
+  clipboardAtom,
+  conflictsAtom,
+  filesAtom,
+  messageAtom,
+  pendingAtom,
+  pendingKey,
+  selectionAtom,
+} from "../atoms/base.js";
 import { currentRowAtom, fileCountAtom } from "../atoms/derived.js";
+import { historyAtom } from "../atoms/history.js";
 import { getOriginalValue } from "./files.js";
+import { createHistoryPush } from "./undo.js";
 
 /**
  * Set clipboard
@@ -43,6 +53,9 @@ export const pasteActionOp = Atom.fnSync((_: void, get) => {
   const clipboard = get(clipboardAtom);
   const selection = get(selectionAtom);
   const files = get(filesAtom);
+  const pending = get(pendingAtom);
+  const conflicts = get(conflictsAtom);
+  const history = get(historyAtom);
 
   if (!currentRow || !clipboard) {
     get.set(messageAtom, "⚠ Clipboard empty");
@@ -56,7 +69,7 @@ export const pasteActionOp = Atom.fnSync((_: void, get) => {
     return;
   }
 
-  const pending = get(pendingAtom);
+  get.set(historyAtom, createHistoryPush(pending, conflicts, history));
   const key = pendingKey(currentRow.key, fileIndex);
   const newPending = new Map(pending);
   newPending.set(key, {
@@ -77,13 +90,15 @@ export const pasteAllActionOp = Atom.fnSync((_: void, get) => {
   const clipboard = get(clipboardAtom);
   const files = get(filesAtom);
   const fileCount = get(fileCountAtom);
+  const pending = get(pendingAtom);
+  const conflicts = get(conflictsAtom);
+  const history = get(historyAtom);
 
   if (!currentRow || !clipboard) {
     get.set(messageAtom, "⚠ Clipboard empty");
     return;
   }
 
-  const pending = get(pendingAtom);
   const newPending = new Map(pending);
   let changeCount = 0;
 
@@ -107,6 +122,7 @@ export const pasteAllActionOp = Atom.fnSync((_: void, get) => {
     return;
   }
 
+  get.set(historyAtom, createHistoryPush(pending, conflicts, history));
   get.set(pendingAtom, newPending);
   get.set(messageAtom, `📋 Pasted to ${changeCount} files`);
 });

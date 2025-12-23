@@ -127,3 +127,8 @@ export const fileCountAtom = Atom.map(filesAtom, (files): number => files.length
  * Row count (convenience)
  */
 export const rowCountAtom = Atom.map(effectiveDiffRowsAtom, (rows): number => rows.length);
+
+/**
+ * Whether there are any pending changes
+ */
+export const hasPendingChangesAtom = Atom.map(pendingAtom, (pending): boolean => pending.size > 0);

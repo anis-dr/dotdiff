@@ -139,3 +139,8 @@ export const saveKeyPressedOp = Atom.fnSync((_: void, get) => {
     get.set(appModeAtom, AppMode.Modal({ modalType: "save" }));
   }
 });
+
+/** Handle quit key press - opens quit confirmation modal */
+export const quitKeyPressedOp = Atom.fnSync((_: void, get) => {
+  get.set(appModeAtom, AppMode.Modal({ modalType: "quit" }));
+});

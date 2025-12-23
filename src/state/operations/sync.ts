@@ -5,9 +5,11 @@
  */
 import { Atom } from "@effect-atom/atom-react";
 import { FileIndex } from "../../types.js";
-import { filesAtom, messageAtom, pendingAtom, pendingKey } from "../atoms/base.js";
+import { conflictsAtom, filesAtom, messageAtom, pendingAtom, pendingKey } from "../atoms/base.js";
 import { currentRowAtom, fileCountAtom } from "../atoms/derived.js";
+import { historyAtom } from "../atoms/history.js";
 import { getOriginalValue } from "./files.js";
+import { createHistoryPush } from "./undo.js";
 
 /**
  * Sync value from left file to right file (2-file mode only)
@@ -16,6 +18,9 @@ export const syncToRightActionOp = Atom.fnSync((_: void, get) => {
   const currentRow = get(currentRowAtom);
   const fileCount = get(fileCountAtom);
   const files = get(filesAtom);
+  const pending = get(pendingAtom);
+  const conflicts = get(conflictsAtom);
+  const history = get(historyAtom);
 
   if (!currentRow || fileCount !== 2) return;
 
@@ -31,7 +36,7 @@ export const syncToRightActionOp = Atom.fnSync((_: void, get) => {
     return;
   }
 
-  const pending = get(pendingAtom);
+  get.set(historyAtom, createHistoryPush(pending, conflicts, history));
   const rightIndex = FileIndex.make(1);
   const key = pendingKey(currentRow.key, rightIndex);
   const newPending = new Map(pending);
@@ -52,6 +57,9 @@ export const syncToLeftActionOp = Atom.fnSync((_: void, get) => {
   const currentRow = get(currentRowAtom);
   const fileCount = get(fileCountAtom);
   const files = get(filesAtom);
+  const pending = get(pendingAtom);
+  const conflicts = get(conflictsAtom);
+  const history = get(historyAtom);
 
   if (!currentRow || fileCount !== 2) return;
 
@@ -67,7 +75,7 @@ export const syncToLeftActionOp = Atom.fnSync((_: void, get) => {
     return;
   }
 
-  const pending = get(pendingAtom);
+  get.set(historyAtom, createHistoryPush(pending, conflicts, history));
   const leftIndex = FileIndex.make(0);
   const key = pendingKey(currentRow.key, leftIndex);
   const newPending = new Map(pending);

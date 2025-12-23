@@ -282,12 +282,14 @@ const ServicesLive = Layer.mergeAll(
   FileWatcherLive,
 );
 
-// DevTools layer for Effect extension tracer/metrics
-const DevToolsLive = DevTools.layer();
+// DevTools only in dev - tree-shaken via bun build --define process.env.NODE_ENV="production"
+const DevToolsLayer = process.env.NODE_ENV === "production"
+  ? Layer.empty
+  : DevTools.layer();
 
 const MainLive = ServicesLive.pipe(
   Layer.provideMerge(BunContext.layer),
-  Layer.provideMerge(DevToolsLive),
+  Layer.provideMerge(DevToolsLayer),
 );
 
 // Run with proper error handling

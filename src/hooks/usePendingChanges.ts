@@ -14,7 +14,6 @@ import {
   pendingListAtom,
   removeChangeOp,
   removeChangesForKeyOp,
-  undoLastOp,
   upsertChangeOp,
 } from "../state/index.js";
 import type { EnvKey, FileIndex, PendingChange } from "../types.js";
@@ -27,7 +26,6 @@ export interface UsePendingChanges {
   removeChange: (varKey: EnvKey, fileIndex: FileIndex) => void;
   removeChangesForKey: (varKey: EnvKey, excludeFileIndex?: FileIndex) => void;
   clearChanges: () => void;
-  undoLast: () => boolean;
   findChange: (varKey: EnvKey, fileIndex: FileIndex) => PendingChange | undefined;
   addChanges: (changes: ReadonlyArray<PendingChange>) => void;
 }
@@ -43,7 +41,6 @@ export function usePendingChanges(): UsePendingChanges {
   const doRemoveChange = useAtomSet(removeChangeOp);
   const doRemoveChangesForKey = useAtomSet(removeChangesForKeyOp);
   const clearChanges = useAtomSet(clearChangesOp);
-  const doUndoLast = useAtomSet(undoLastOp);
   const addChanges = useAtomSet(addChangesOp);
 
   // Wrapper for removeChange to match expected signature
@@ -66,13 +63,6 @@ export function usePendingChanges(): UsePendingChanges {
     [doRemoveChangesForKey],
   );
 
-  // Check size first, then execute to avoid race condition
-  const undoLast = useCallback((): boolean => {
-    const hadChanges = pending.size > 0;
-    if (hadChanges) doUndoLast();
-    return hadChanges;
-  }, [doUndoLast, pending.size]);
-
   // findChange is a pure read operation, doesn't need atomic op
   const findChange = useCallback(
     (varKey: EnvKey, fileIndex: FileIndex): PendingChange | undefined => {
@@ -90,7 +80,6 @@ export function usePendingChanges(): UsePendingChanges {
     removeChange,
     removeChangesForKey,
     clearChanges,
-    undoLast,
     findChange,
     addChanges,
   };

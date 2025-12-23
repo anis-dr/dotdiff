@@ -7,6 +7,7 @@ import { Atom } from "@effect-atom/atom-react";
 import { AppMode, FileIndex } from "../../types.js";
 import {
   appModeAtom,
+  conflictsAtom,
   editModeAtom,
   filesAtom,
   messageAtom,
@@ -15,7 +16,9 @@ import {
   selectionAtom,
 } from "../atoms/base.js";
 import { currentRowAtom } from "../atoms/derived.js";
+import { historyAtom } from "../atoms/history.js";
 import { getOriginalValue } from "./files.js";
+import { createHistoryPush } from "./undo.js";
 
 /**
  * Update edit input value
@@ -43,6 +46,9 @@ export const saveEditActionOp = Atom.fnSync(
     const editMode = get(editModeAtom);
     const selection = get(selectionAtom);
     const files = get(filesAtom);
+    const pending = get(pendingAtom);
+    const conflicts = get(conflictsAtom);
+    const history = get(historyAtom);
 
     if (!currentRow || !editMode) {
       get.set(appModeAtom, AppMode.Normal());
@@ -73,8 +79,7 @@ export const saveEditActionOp = Atom.fnSync(
     const originalValue = getOriginalValue(files, currentRow.key, fileIndex);
 
     if (newValue === originalValue) {
-      // Remove pending change
-      const pending = get(pendingAtom);
+      get.set(historyAtom, createHistoryPush(pending, conflicts, history));
       const key = pendingKey(currentRow.key, fileIndex);
       const newPending = new Map(pending);
       newPending.delete(key);
@@ -84,8 +89,7 @@ export const saveEditActionOp = Atom.fnSync(
       return;
     }
 
-    // Upsert change
-    const pending = get(pendingAtom);
+    get.set(historyAtom, createHistoryPush(pending, conflicts, history));
     const key = pendingKey(currentRow.key, fileIndex);
     const newPending = new Map(pending);
     newPending.set(key, {

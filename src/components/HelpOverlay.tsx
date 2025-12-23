@@ -15,7 +15,6 @@ const keybindings = [
   { key: "Tab", action: "Cycle columns" },
   { key: "] / [", action: "Next/prev diff" },
   { key: "/", action: "Search keys" },
-  { key: "n / N", action: "Next/prev match" },
   { key: "Esc", action: "Cancel search/edit" },
   { key: "", action: "" }, // Spacer
   { key: "e / Enter", action: "Edit value" },
@@ -28,9 +27,10 @@ const keybindings = [
   { key: "V", action: "Paste to all files" },
   { key: "< / >", action: "Sync left/right" },
   { key: "", action: "" }, // Spacer
-  { key: "r", action: "Revert change" },
-  { key: "u", action: "Undo last" },
-  { key: "U", action: "Undo all" },
+  { key: "r", action: "Revert cell" },
+  { key: "R", action: "Undo all" },
+  { key: "u", action: "Undo" },
+  { key: "U", action: "Redo" },
   { key: "", action: "" }, // Spacer
   { key: "s", action: "Save changes" },
   { key: "q", action: "Quit" },

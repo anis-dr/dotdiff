@@ -4,9 +4,8 @@
  * Uses AppMode.$match for clean mode-based dispatch.
  * Actions are still passed as callbacks to allow async operations (save, quit).
  */
-import { RegistryContext, useAtomSet, useAtomValue } from "@effect-atom/atom-react";
+import { useAtomSet, useAtomValue } from "@effect-atom/atom-react";
 import { useKeyboard } from "@opentui/react";
-import { useContext } from "react";
 import {
   appModeAtom,
   cancelEditOp,
@@ -19,6 +18,7 @@ import {
   enterAddModeOp,
   enterEditModeActionOp,
   enterSearchModeOp,
+  hasPendingChangesAtom,
   moveDownOp,
   moveLeftOp,
   moveRightOp,
@@ -28,15 +28,16 @@ import {
   openModalOp,
   pasteActionOp,
   pasteAllActionOp,
-  pendingAtom,
   prevDiffOp,
   prevMatchOp,
+  quitKeyPressedOp,
+  redoOp,
   revertActionOp,
   saveKeyPressedOp,
   syncToLeftActionOp,
   syncToRightActionOp,
-  undoActionOp,
-  undoAllActionOp,
+  undoAllOp,
+  undoOp,
 } from "../state/index.js";
 import { AppMode } from "../types.js";
 
@@ -50,7 +51,7 @@ export interface KeyBindingCallbacks {
 export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
   const { onConfirmSave, onQuit } = callbacks;
   const mode = useAtomValue(appModeAtom);
-  const registry = useContext(RegistryContext);
+  const hasPendingChanges = useAtomValue(hasPendingChangesAtom);
 
   // Mode transitions
   const cancelEdit = useAtomSet(cancelEditOp);
@@ -63,6 +64,7 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
 
   // Key press handlers with encapsulated pending-check logic
   const handleSaveKey = useAtomSet(saveKeyPressedOp);
+  const handleQuitKey = useAtomSet(quitKeyPressedOp);
 
   // Navigation
   const moveUp = useAtomSet(moveUpOp);
@@ -80,8 +82,9 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
   const paste = useAtomSet(pasteActionOp);
   const pasteAll = useAtomSet(pasteAllActionOp);
   const revert = useAtomSet(revertActionOp);
-  const undo = useAtomSet(undoActionOp);
-  const undoAll = useAtomSet(undoAllActionOp);
+  const undo = useAtomSet(undoOp);
+  const redo = useAtomSet(redoOp);
+  const undoAll = useAtomSet(undoAllOp);
   const deleteVariable = useAtomSet(deleteVariableActionOp);
   const deleteAll = useAtomSet(deleteAllActionOp);
   const syncToLeft = useAtomSet(syncToLeftActionOp);
@@ -163,15 +166,19 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
             }
             break;
 
-          // Undo/Revert
+          // Undo/Redo/Revert
           case "r":
-            revert();
+            if (key.shift) {
+              undoAll(); // R = undo all
+            } else {
+              revert(); // r = revert current cell
+            }
             break;
           case "u":
             if (key.shift) {
-              undoAll();
+              redo(); // U = redo
             } else {
-              undo();
+              undo(); // u = undo
             }
             break;
 
@@ -198,11 +205,10 @@ export function useKeyBindings(callbacks: KeyBindingCallbacks): void {
             }
             break;
 
-          // Quit - check pending via registry to avoid subscription
+          // Quit
           case "q": {
-            const hasPending = registry.get(pendingAtom).size > 0;
-            if (hasPending) {
-              openModal("quit");
+            if (hasPendingChanges) {
+              handleQuitKey();
             } else {
               onQuit();
             }

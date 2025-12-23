@@ -6,9 +6,11 @@
 import { Atom } from "@effect-atom/atom-react";
 import type { PendingChange } from "../../types.js";
 import { FileIndex } from "../../types.js";
-import { filesAtom, messageAtom, pendingAtom, pendingKey, selectionAtom } from "../atoms/base.js";
+import { conflictsAtom, filesAtom, messageAtom, pendingAtom, pendingKey, selectionAtom } from "../atoms/base.js";
 import { currentRowAtom, fileCountAtom, pendingListAtom } from "../atoms/derived.js";
+import { historyAtom } from "../atoms/history.js";
 import { getOriginalValue } from "./files.js";
+import { createHistoryPush } from "./undo.js";
 
 /**
  * Mark current cell variable for deletion
@@ -18,6 +20,8 @@ export const deleteVariableActionOp = Atom.fnSync((_: void, get) => {
   const selection = get(selectionAtom);
   const files = get(filesAtom);
   const pending = get(pendingAtom);
+  const conflicts = get(conflictsAtom);
+  const history = get(historyAtom);
 
   if (!currentRow) return;
 
@@ -31,6 +35,8 @@ export const deleteVariableActionOp = Atom.fnSync((_: void, get) => {
     get.set(messageAtom, "⚠ Already missing in this file");
     return;
   }
+
+  get.set(historyAtom, createHistoryPush(pending, conflicts, history));
 
   if (originalValue === null) {
     // Value only exists due to pending change, revert it
@@ -60,6 +66,8 @@ export const deleteAllActionOp = Atom.fnSync((_: void, get) => {
   const files = get(filesAtom);
   const fileCount = get(fileCountAtom);
   const pending = get(pendingAtom);
+  const conflicts = get(conflictsAtom);
+  const history = get(historyAtom);
   const pendingList = get(pendingListAtom);
 
   if (!currentRow) return;
@@ -93,6 +101,7 @@ export const deleteAllActionOp = Atom.fnSync((_: void, get) => {
   if (deleteCount === 0) {
     const hadPendingForKey = pendingList.some((c) => c.key === currentRow.key);
     if (hadPendingForKey) {
+      get.set(historyAtom, createHistoryPush(pending, conflicts, history));
       get.set(pendingAtom, newPending);
       get.set(messageAtom, "↩ Reverted pending values (now missing everywhere)");
     } else {
@@ -101,6 +110,7 @@ export const deleteAllActionOp = Atom.fnSync((_: void, get) => {
     return;
   }
 
+  get.set(historyAtom, createHistoryPush(pending, conflicts, history));
   get.set(pendingAtom, newPending);
   get.set(messageAtom, `✗ Marked ${currentRow.key} for deletion in ${deleteCount} files`);
 });

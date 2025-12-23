@@ -6,7 +6,7 @@
   "scripts": {
     "prepare": "effect-language-service patch",
     "dev": "bun run src/index.tsx",
-    "build": "tsc",
+    "build": "bun scripts/build.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix"
